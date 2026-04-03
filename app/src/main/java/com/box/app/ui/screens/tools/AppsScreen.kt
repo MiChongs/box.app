@@ -1,4 +1,4 @@
-package com.box.app.ui.screens.tools
+﻿package com.box.app.ui.screens.tools
 
 import android.content.Intent
 import android.net.Uri
@@ -717,7 +717,7 @@ fun ToolsAppsScreen(
                         bottomEnd = 0.dp
                     ),
                     colors = CardDefaults.cardColors(containerColor = c.card),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -756,7 +756,7 @@ fun ToolsAppsScreen(
                                 }
                                 if (userCounts.size > 1) {
                                     Text(
-                                        text = userCounts.entries.joinToString(" • ") { (userId, count) ->
+                                        text = userCounts.entries.joinToString(" | ") { (userId, count) ->
                                             "${userDisplayNames[userId] ?: context.getString(R.string.tools_apps_user_fallback, userId)}: $count"
                                         },
                                         style = MaterialTheme.typography.bodySmall,
@@ -862,35 +862,34 @@ fun ToolsAppsScreen(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(10.dp))
+                                Spacer(modifier = Modifier.height(8.dp))
 
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedRectangle(12.dp))
-                                        .background(accent.copy(alpha = 0.13f))
-                                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                                        .clip(RoundedRectangle(14.dp))
+                                        .background(accent.copy(alpha = 0.14f))
+                                        .padding(12.dp)
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(
                                             modifier = Modifier
-                                                .size(28.dp)
-                                                .clip(RoundedRectangle(8.dp))
-                                                .background(accent.copy(alpha = 0.2f)),
+                                                .size(34.dp)
+                                                .background(accent.copy(alpha = 0.22f), shape = RoundedRectangle(10.dp)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Filled.Info,
                                                 contentDescription = null,
                                                 tint = accent,
-                                                modifier = Modifier.size(15.dp)
+                                                modifier = Modifier.size(18.dp)
                                             )
                                         }
 
-                                        Column(modifier = Modifier.padding(start = 10.dp)) {
+                                        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                                             Text(
                                                 text = stringResource(R.string.tools_apps_restart_tip_title),
-                                                style = MaterialTheme.typography.labelLarge,
+                                                style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = accent
                                             )
@@ -923,7 +922,7 @@ fun ToolsAppsScreen(
                             bottomEnd = 18.dp
                         ),
                         colors = CardDefaults.cardColors(containerColor = c.card),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Row(
                             modifier = Modifier
@@ -951,7 +950,7 @@ fun ToolsAppsScreen(
                             bottomEnd = 18.dp
                         ),
                         colors = CardDefaults.cardColors(containerColor = c.card),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Box(
                             modifier = Modifier
@@ -998,7 +997,7 @@ fun ToolsAppsScreen(
                         subtitle = if (app.userId == 0) {
                             app.userScopedPackageName
                         } else {
-                            "${app.userScopedPackageName} • ${userDisplayNames[app.userId] ?: stringResource(R.string.tools_apps_user_fallback, app.userId)}"
+                            "${app.userScopedPackageName} - ${userDisplayNames[app.userId] ?: stringResource(R.string.tools_apps_user_fallback, app.userId)}"
                         },
                         showDivider = !isLastOfSelected,
                         clipRow = false,
@@ -1104,7 +1103,7 @@ fun ToolsAppsScreen(
                         subtitle = if (app.userId == 0) {
                             app.userScopedPackageName
                         } else {
-                            "${app.userScopedPackageName} • ${userDisplayNames[app.userId] ?: stringResource(R.string.tools_apps_user_fallback, app.userId)}"
+                            "${app.userScopedPackageName} - ${userDisplayNames[app.userId] ?: stringResource(R.string.tools_apps_user_fallback, app.userId)}"
                         },
                         showDivider = !isLastOverall,
                         clipRow = false,
@@ -1498,3 +1497,4 @@ private fun FloatingAppsManageTopBar(
         }
     }
 }
+

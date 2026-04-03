@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -350,7 +351,7 @@ fun ToolsSearchCard(hint: String) {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedRectangle(18.dp),
         colors = CardDefaults.cardColors(containerColor = c.card),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
             modifier = Modifier
@@ -379,7 +380,7 @@ fun ToolsSectionCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedRectangle(18.dp),
         colors = CardDefaults.cardColors(containerColor = c.card),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -410,6 +411,7 @@ fun ToolsRowIcon(
     showDivider: Boolean = true,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
+    badge: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
     val c = appColors()
@@ -461,6 +463,11 @@ fun ToolsRowIcon(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+
+        if (badge != null) {
+            badge()
+            Spacer(modifier = Modifier.width(8.dp))
         }
 
         Text(
@@ -676,3 +683,4 @@ fun SettingsToggleRow(
         )
     }
 }
+

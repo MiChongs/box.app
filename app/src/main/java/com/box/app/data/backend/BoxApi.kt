@@ -152,6 +152,17 @@ internal object BoxApi {
         }
     }
 
+    private fun appRepoApiBase(): String = "https://api.github.com/repos/boxproxy/app"
+
+    private fun appAssetFlavorToken(): String = if (BuildConfig.FLAVOR == "bfr") "bfr" else "box"
+
+    private fun appBuildTypeToken(): String = BuildConfig.BUILD_TYPE.lowercase()
+
+    private val appAssetRegex = Regex(
+        pattern = """^app-(\d{8}-\d{4})-(box|bfr)-(debug|release)\.apk$""",
+        option = RegexOption.IGNORE_CASE
+    )
+
     suspend fun fetchLatestReleaseInfo(repoApi: String = repoApiBase()): com.box.app.data.model.ReleaseInfo? {
         return withContext(Dispatchers.IO) {
             try {
@@ -185,6 +196,10 @@ internal object BoxApi {
     }
 
     suspend fun checkForUpdates(): com.box.app.data.model.UpdateCheckResult {
+        return checkForModuleUpdates()
+    }
+
+    suspend fun checkForModuleUpdates(): com.box.app.data.model.UpdateCheckResult {
         return withContext(Dispatchers.IO) {
             try {
                 val currentVersion = getCurrentModuleVersion()
@@ -228,6 +243,85 @@ internal object BoxApi {
                     stableRelease = null,
                     prereleaseRelease = null,
                     currentVersion = "Unknown",
+                    recommendedRelease = null
+                )
+            }
+        }
+    }
+
+    private data class AppAssetInfo(
+        val fileName: String,
+        val version: String,
+        val flavor: String,
+        val buildType: String,
+        val downloadUrl: String
+    )
+
+    suspend fun checkForAppUpdates(currentAppVersion: String): com.box.app.data.model.UpdateCheckResult {
+        return withContext(Dispatchers.IO) {
+            try {
+                val flavor = appAssetFlavorToken()
+                val buildType = appBuildTypeToken()
+                val currentVersion = normalizeAppVersion(currentAppVersion)
+                val currentFileName = buildCurrentAppFileName(currentVersion, flavor, buildType)
+
+                val release = fetchAppLatestRelease()
+                    ?: return@withContext com.box.app.data.model.UpdateCheckResult(
+                        hasUpdate = false,
+                        stableRelease = null,
+                        prereleaseRelease = null,
+                        currentVersion = currentVersion,
+                        recommendedRelease = null
+                    )
+
+                val latestAssetWithRelease = parseAppAssetsFromRelease(release)
+                    .asSequence()
+                    .filter { it.flavor == flavor && it.buildType == buildType }
+                    .maxByOrNull { appVersionSortKey(it.version) ?: Long.MIN_VALUE }
+                    ?: return@withContext com.box.app.data.model.UpdateCheckResult(
+                        hasUpdate = false,
+                        stableRelease = null,
+                        prereleaseRelease = null,
+                        currentVersion = currentVersion,
+                        recommendedRelease = null
+                    )
+                val latestAsset = latestAssetWithRelease
+
+                val latestVersionKey = appVersionSortKey(latestAsset.version)
+                val currentVersionKey = appVersionSortKey(currentVersion)
+                val hasUpdate = when {
+                    latestVersionKey != null && currentVersionKey != null -> latestVersionKey > currentVersionKey
+                    else -> !latestAsset.fileName.equals(currentFileName, ignoreCase = true)
+                }
+
+                val latestReleaseInfo = com.box.app.data.model.ReleaseInfo(
+                    tag = latestAsset.version,
+                    name = latestAsset.fileName,
+                    url = release.optString("html_url").orEmpty(),
+                    isPrerelease = release.optBoolean("prerelease", false),
+                    body = release.optString("body").orEmpty(),
+                    publishedAt = release.optString("published_at").orEmpty(),
+                    downloadUrl = latestAsset.downloadUrl,
+                    commitSha = ""
+                )
+
+                com.box.app.data.model.UpdateCheckResult(
+                    hasUpdate = hasUpdate,
+                    stableRelease = if (hasUpdate) latestReleaseInfo else null,
+                    prereleaseRelease = null,
+                    currentVersion = currentFileName,
+                    recommendedRelease = if (hasUpdate) latestReleaseInfo else null
+                )
+            } catch (_: Exception) {
+                com.box.app.data.model.UpdateCheckResult(
+                    hasUpdate = false,
+                    stableRelease = null,
+                    prereleaseRelease = null,
+                    currentVersion = buildCurrentAppFileName(
+                        normalizeAppVersion(currentAppVersion),
+                        appAssetFlavorToken(),
+                        appBuildTypeToken()
+                    ),
                     recommendedRelease = null
                 )
             }
@@ -439,6 +533,63 @@ internal object BoxApi {
         bodyShaRegex.find(body)?.groupValues?.get(1)?.let { return it }
         
         return ""
+    }
+
+    private suspend fun fetchAppLatestRelease(): JSONObject? {
+        return try {
+            val url = appRepoApiBase().trimEnd('/') + "/releases/latest"
+            val req = Request.Builder().get().url(url).build()
+            okHttpClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val body = resp.body.string().orEmpty()
+                if (body.isBlank()) return null
+                val o = JSONObject(body)
+                if (o.optBoolean("draft", false)) return null
+                o
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseAppAssetsFromRelease(release: JSONObject): List<AppAssetInfo> {
+        val assets = release.optJSONArray("assets") ?: return emptyList()
+        val result = mutableListOf<AppAssetInfo>()
+        for (i in 0 until assets.length()) {
+            val asset = assets.optJSONObject(i) ?: continue
+            val fileName = asset.optString("name").orEmpty()
+            val match = appAssetRegex.find(fileName) ?: continue
+            val version = match.groupValues.getOrNull(1).orEmpty()
+            val flavor = match.groupValues.getOrNull(2).orEmpty().lowercase()
+            val buildType = match.groupValues.getOrNull(3).orEmpty().lowercase()
+            val downloadUrl = asset.optString("browser_download_url").orEmpty()
+            if (version.isBlank() || flavor.isBlank() || buildType.isBlank() || downloadUrl.isBlank()) continue
+            result.add(
+                AppAssetInfo(
+                    fileName = fileName,
+                    version = version,
+                    flavor = flavor,
+                    buildType = buildType,
+                    downloadUrl = downloadUrl
+                )
+            )
+        }
+        return result
+    }
+
+    private fun buildCurrentAppFileName(version: String, flavor: String, buildType: String): String {
+        return "app-$version-$flavor-$buildType.apk"
+    }
+
+    private fun normalizeAppVersion(version: String): String {
+        val v = version.trim()
+        if (v.isBlank()) return "Unknown"
+        return Regex("""(\d{8}-\d{4})""").find(v)?.groupValues?.get(1) ?: v
+    }
+
+    private fun appVersionSortKey(version: String): Long? {
+        val normalized = normalizeAppVersion(version)
+        return normalized.replace("-", "").toLongOrNull()
     }
 
     private suspend fun getCurrentModuleVersion(): String {
@@ -835,7 +986,13 @@ internal object BoxApi {
     }
 
     suspend fun getPanelUrl(): String? {
-        val cfg = cachedApiConfig ?: getExternalControllerConfig()?.also { cachedApiConfig = it } ?: return null
+        val latest = runCatching { getExternalControllerConfig() }.getOrNull()
+        val cfg = if (latest != null) {
+            cachedApiConfig = latest
+            latest
+        } else {
+            cachedApiConfig ?: return null
+        }
         return "http://127.0.0.1:${cfg.port}/ui"
     }
 

@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <!-- App -->
     <string name="app_name">Box</string>
 
@@ -132,9 +132,12 @@
     <string name="home_card_net_speed">Net Speed</string>
     <string name="home_card_subscription">Subscription</string>
     <string name="home_card_system">System</string>
+    <string name="home_system_disabled_hint">Service is stopped. Start service to view real-time CPU and RAM metrics.</string>
     <string name="home_ip_badge_lan">LAN</string>
-    <string name="home_ip_badge_pub">PUB</string>
-    <string name="home_ip_badge_pub_with_flag">PUB %1$s</string>
+    <string name="home_ip_badge_pub">WAN</string>
+    <string name="home_ip_badge_pub_with_flag">WAN %1$s</string>
+    <string name="home_ip_subtitle_interface">Interface: %1$s</string>
+    <string name="home_ip_subtitle_region">Region: %1$s</string>
     <string name="home_ip_geo_sheet_title">Public IP details</string>
     <string name="home_ip_geo_sheet_subtitle">IPv4 and IPv6 detection details</string>
     <string name="home_ip_geo_ipv4_title">IPv4</string>
@@ -149,8 +152,12 @@
     <string name="home_ip_geo_field_organization">organization</string>
     <string name="home_net_up_unknown">Up -</string>
     <string name="home_net_up_value">Up %1$s</string>
+    <string name="home_net_up_label">Up</string>
+    <string name="home_net_down_label">Down</string>
 
     <string name="home_subscription_total">%1$s Total</string>
+    <string name="home_subscription_used_label">Used</string>
+    <string name="home_subscription_total_label">Total</string>
 
     <string name="home_service_status_running">Running</string>
     <string name="home_service_status_unavailable">Unavailable</string>
@@ -239,6 +246,9 @@
     <string name="settings_true_black_subtitle">Make dark theme backgrounds pure black</string>
     <string name="settings_liquid_glass_translucent">Liquid glass translucency</string>
     <string name="settings_liquid_glass_translucent_subtitle">On: translucent glass. Off: blur only.</string>
+    <string name="settings_blur_effects">Blur effects</string>
+    <string name="settings_blur_effects_subtitle">Enable liquid glass and backdrop blur effects</string>
+    <string name="settings_blur_effects_unsupported_subtitle">Requires Android 12 or above</string>
     <string name="settings_liquid_glass_lens_strength">Lens strength</string>
     <string name="settings_liquid_glass_lens_strength_subtitle">Adjust glass refraction intensity</string>
     <string name="settings_liquid_glass_blur_strength">Blur strength</string>
@@ -311,6 +321,12 @@
     <string name="settings_section_about">About</string>
     <string name="settings_section_about_subtitle">APP &amp; module info</string>
     <string name="settings_version">Version</string>
+    <string name="settings_update_status_checking">Checking</string>
+    <string name="settings_update_status_app">APP</string>
+    <string name="settings_update_status_module">Module</string>
+    <string name="settings_update_status_app_available">APP update</string>
+    <string name="settings_update_status_module_available">Module update</string>
+    <string name="settings_update_status_both_available">APP + Module updates</string>
     <string name="settings_open_source_licenses">Open Source Licenses</string>
     <string name="settings_open_source_licenses_subtitle">Third-party libraries and notices</string>
     <string name="settings_module_not_installed">Not installed</string>
@@ -485,6 +501,7 @@
     <string name="tools_cnip_bypass_ipv4_subtitle">Only bypass IPv4 list</string>
     <string name="tools_cnip_bypass_ipv6_title">Bypass CNIP (IPv6)</string>
     <string name="tools_cnip_bypass_ipv6_subtitle">Only bypass IPv6 list</string>
+    <string name="tools_cnip_ipset_hint">CNIP bypass requires ipset support. Go to Home → System card to check ipset status.</string>
 
     <string name="tools_cnip_section_files_title">Files</string>
     <string name="tools_cnip_section_files_subtitle">CNIP file paths</string>
@@ -677,6 +694,9 @@
     <string name="bottomsheet_latest_version_title">You are using the latest version</string>
     <string name="bottomsheet_no_updates_available">No updates are currently available</string>
     <string name="bottomsheet_update_available">Update available</string>
+    <string name="bottomsheet_app_update_available">App update available</string>
+    <string name="bottomsheet_app_latest_version_title">You are using the latest app build</string>
+    <string name="bottomsheet_app_release_latest">Latest app build</string>
     <string name="bottomsheet_release_recommended">Recommended</string>
     <string name="bottomsheet_release_version">Version: %1$s</string>
     <string name="bottomsheet_release_commit">Commit: %1$s</string>
@@ -688,12 +708,16 @@
     <string name="bottomsheet_release_prerelease_recommended">Prerelease (Recommended)</string>
     <string name="bottomsheet_release_type">Type: %1$s</string>
     <string name="bottomsheet_release_notes">Release Notes:</string>
-    <string name="bottomsheet_release_prerelease_warning">This is a prerelease version, used for testing and debugging.</string>
+    <string name="bottomsheet_show_more">Show more</string>
+    <string name="bottomsheet_show_less">Show less</string>
+    <string name="bottomsheet_release_prerelease_warning">This is a prerelease version for testing and debugging. The app is based on the latest prerelease build.</string>
     <string name="bottomsheet_view_in_browser">View in browser</string>
 
     <string name="bottomsheet_download_module">Download module</string>
+    <string name="bottomsheet_download_app">Download app</string>
     <string name="bottomsheet_downloading">Downloading</string>
     <string name="bottomsheet_no_module_asset">No module asset</string>
+    <string name="bottomsheet_no_app_asset">No app asset</string>
     <string name="bottomsheet_download_success">Download successful</string>
     <string name="bottomsheet_download_failed">Download failed</string>
 

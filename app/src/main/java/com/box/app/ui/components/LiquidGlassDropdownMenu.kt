@@ -1,6 +1,5 @@
 package com.box.app.ui.components
 
-import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -10,6 +9,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -75,7 +75,13 @@ fun LiquidGlassDropdownMenu(
     val translucent by ThemeManager.liquidGlassTranslucent.collectAsState()
     val blurDp by ThemeManager.liquidGlassBlurDp.collectAsState()
     val lensStrength by ThemeManager.liquidGlassLensStrength.collectAsState()
-    val supportsLiquidGlass = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && backdrop != null
+    val blurEffectsEnabled = ThemeManager.shouldUseBlurEffects()
+    val supportsLiquidGlass = blurEffectsEnabled && backdrop != null
+    val borderColor = if (isDark) {
+        Color.White.copy(alpha = 0.14f)
+    } else {
+        Color.Black.copy(alpha = 0.07f)
+    }
 
     var menuSize by remember { mutableStateOf(IntSize.Zero) }
     var overlayPosInWindow by remember { mutableStateOf(IntOffset.Zero) }
@@ -158,6 +164,13 @@ fun LiquidGlassDropdownMenu(
                         )
                     } else {
                         Modifier.background(containerColor)
+                    }
+                )
+                .then(
+                    if (blurEffectsEnabled) {
+                        Modifier
+                    } else {
+                        Modifier.border(1.dp, borderColor, shape)
                     }
                 )
                 .clickable(

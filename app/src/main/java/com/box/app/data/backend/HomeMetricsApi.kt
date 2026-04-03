@@ -19,6 +19,11 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 internal object HomeMetricsApi {
 
+    data class LanIpInfo(
+        val ip: String,
+        val iface: String
+    )
+
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
@@ -29,19 +34,28 @@ internal object HomeMetricsApi {
     }
 
     suspend fun getLanIp(): String {
+        return getLanIpInfo().ip
+    }
+
+    suspend fun getLanIpInfo(): LanIpInfo {
         return try {
-            val ifaces = NetworkInterface.getNetworkInterfaces() ?: return "-"
-            val ip = ifaces.toList()
-                .asSequence()
-                .filter { it.isUp && !it.isLoopback }
-                .flatMap { it.inetAddresses.toList().asSequence() }
-                .filterIsInstance<Inet4Address>()
-                .mapNotNull { it.hostAddress }
-                .firstOrNull { it.isNotBlank() }
-                .orEmpty()
-            if (ip.isNotBlank()) ip else "-"
+            val ifaces = NetworkInterface.getNetworkInterfaces() ?: return LanIpInfo(ip = "-", iface = "-")
+            for (iface in ifaces.toList()) {
+                if (!iface.isUp || iface.isLoopback) continue
+                val ip = iface.inetAddresses.toList()
+                    .asSequence()
+                    .filterIsInstance<Inet4Address>()
+                    .mapNotNull { it.hostAddress }
+                    .firstOrNull { it.isNotBlank() }
+                    .orEmpty()
+                if (ip.isNotBlank()) {
+                    val ifaceName = iface.name?.takeIf { it.isNotBlank() } ?: "-"
+                    return LanIpInfo(ip = ip, iface = ifaceName)
+                }
+            }
+            LanIpInfo(ip = "-", iface = "-")
         } catch (_: Exception) {
-            "-"
+            LanIpInfo(ip = "-", iface = "-")
         }
     }
 
@@ -223,6 +237,12 @@ internal object HomeMetricsApi {
         val isp: String
     )
 
+    data class PublicIpSummary(
+        val ip: String,
+        val country: String,
+        val countryCode: String
+    )
+
     private fun fetchPublicGeoIp(endpoint: String): PublicGeoIpInfo? {
         return try {
             val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
@@ -264,11 +284,24 @@ internal object HomeMetricsApi {
     }
 
     suspend fun getPublicIp(): Pair<String, String> {
+        val s = getPublicIpSummary()
+        return s.ip to s.countryCode
+    }
+
+    suspend fun getPublicIpSummary(): PublicIpSummary {
         val info = fetchPublicGeoIp("https://api-ipv4.ip.sb/geoip")
         return if (info != null) {
-            info.ip to info.countryCode
+            PublicIpSummary(
+                ip = info.ip,
+                country = info.country,
+                countryCode = info.countryCode
+            )
         } else {
-            "N/A" to ""
+            PublicIpSummary(
+                ip = "N/A",
+                country = "-",
+                countryCode = ""
+            )
         }
     }
 

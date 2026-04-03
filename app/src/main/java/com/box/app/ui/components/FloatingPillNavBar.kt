@@ -1,10 +1,10 @@
 package com.box.app.ui.components
 
-import android.os.Build
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -89,12 +89,22 @@ fun FloatingPillNavBar(
     val translucent by ThemeManager.liquidGlassTranslucent.collectAsState()
     val blurDp by ThemeManager.liquidGlassBlurDp.collectAsState()
     val lensStrength by ThemeManager.liquidGlassLensStrength.collectAsState()
-    val supportsLiquidGlass = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val blurEffectsEnabled = ThemeManager.shouldUseBlurEffects()
+    val supportsLiquidGlass = blurEffectsEnabled
 
     val accentColor = appAccentColor()
     val containerColor = c.card.copy(alpha = if (isDark) 0.32f else 0.28f)
     val solidContainerColor = c.card
-    val solidIndicatorColor = c.cardAlt
+    val solidIndicatorColor = if (isDark) {
+        Color(0xFF8F98A8).copy(alpha = 0.32f)
+    } else {
+        Color(0xFF9EA8B8).copy(alpha = 0.24f)
+    }
+    val navBorderColor = if (isDark) {
+        Color.White.copy(alpha = 0.14f)
+    } else {
+        Color.Black.copy(alpha = 0.07f)
+    }
 
     val tabsBackdrop = rememberLayerBackdrop()
 
@@ -126,6 +136,9 @@ fun FloatingPillNavBar(
 
     var isDragging by remember { androidx.compose.runtime.mutableStateOf(false) }
     var dragVisualIndex by remember { mutableIntStateOf(mainPagerState.selectedPage) }
+    val isPagerBusy = mainPagerState.pagerState.isScrollInProgress
+    val isTabClickEnabled = !isDragging
+    val isDragEnabled = supportsLiquidGlass && !isPagerBusy
 
     val dampedDragAnimation = remember(animationScope, tabsCount, density, isLtr) {
         DampedDragAnimation(
@@ -137,6 +150,8 @@ fun FloatingPillNavBar(
             pressedScale = 78f / 56f,
             onDragStarted = {},
             onDragStopped = {
+                isDragging = false
+                val pagerBusyNow = mainPagerState.isNavigating || mainPagerState.pagerState.isScrollInProgress
                 val targetIndex = targetValue.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
                 animateToValue(targetIndex.toFloat())
                 dragVisualIndex = targetIndex
@@ -146,10 +161,12 @@ fun FloatingPillNavBar(
                         spring(1f, 300f, 0.5f)
                     )
                 }
+                if (pagerBusyNow) return@DampedDragAnimation
                 mainPagerState.animateToPage(targetIndex)
             },
             onDrag = { _, dragAmount ->
                 if (tabWidthPx > 0f) {
+                    isDragging = true
                     updateValue(
                         (targetValue + dragAmount.x / tabWidthPx * if (isLtr) 1f else -1f)
                             .fastCoerceIn(0f, (tabsCount - 1).toFloat())
@@ -167,6 +184,21 @@ fun FloatingPillNavBar(
         if (isDragging) return@LaunchedEffect
         dampedDragAnimation.animateToValue(mainPagerState.selectedPage.toFloat())
         dragVisualIndex = mainPagerState.selectedPage
+    }
+
+    LaunchedEffect(isPagerBusy) {
+        if (isPagerBusy) {
+            if (isDragging) {
+                isDragging = false
+            }
+            dampedDragAnimation.release()
+            animationScope.launch {
+                offsetAnimation.animateTo(
+                    0f,
+                    spring(1f, 300f, 0.5f)
+                )
+            }
+        }
     }
 
     val visualSelectedIndex = if (isDragging) dragVisualIndex else mainPagerState.selectedPage
@@ -230,10 +262,11 @@ fun FloatingPillNavBar(
                         Modifier
                             .clip(pillShape)
                             .background(solidContainerColor)
+                            .border(1.dp, navBorderColor, pillShape)
                     }
                 )
-                .then(interactiveHighlight.modifier)
-                .then(interactiveHighlight.gestureModifier)
+                .then(if (supportsLiquidGlass) interactiveHighlight.modifier else Modifier)
+                .then(if (isDragEnabled) interactiveHighlight.gestureModifier else Modifier)
                 .height(64f.dp)
                 .padding(4f.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -243,8 +276,10 @@ fun FloatingPillNavBar(
                 selectedIndex = visualSelectedIndex,
                 icon = Icons.Filled.Home,
                 label = stringResource(MainTab.Home.labelResId),
+                selectedColor = accentColor,
+                enabled = isTabClickEnabled,
                 onClick = {
-                    if (!isDragging) mainPagerState.animateToPage(0)
+                    if (isTabClickEnabled) mainPagerState.animateToPage(0)
                 }
             )
             TabItem(
@@ -252,8 +287,10 @@ fun FloatingPillNavBar(
                 selectedIndex = visualSelectedIndex,
                 icon = Icons.Filled.Build,
                 label = stringResource(MainTab.Tools.labelResId),
+                selectedColor = accentColor,
+                enabled = isTabClickEnabled,
                 onClick = {
-                    if (!isDragging) mainPagerState.animateToPage(1)
+                    if (isTabClickEnabled) mainPagerState.animateToPage(1)
                 }
             )
             TabItem(
@@ -261,8 +298,10 @@ fun FloatingPillNavBar(
                 selectedIndex = visualSelectedIndex,
                 icon = Icons.Filled.Settings,
                 label = stringResource(MainTab.Settings.labelResId),
+                selectedColor = accentColor,
+                enabled = isTabClickEnabled,
                 onClick = {
-                    if (!isDragging) mainPagerState.animateToPage(2)
+                    if (isTabClickEnabled) mainPagerState.animateToPage(2)
                 }
             )
         }
@@ -326,8 +365,10 @@ fun FloatingPillNavBar(
                     selectedIndex = visualSelectedIndex,
                     icon = Icons.Filled.Home,
                     label = stringResource(MainTab.Home.labelResId),
+                    selectedColor = accentColor,
+                    enabled = isTabClickEnabled,
                     onClick = {
-                        if (!isDragging) mainPagerState.animateToPage(0)
+                        if (isTabClickEnabled) mainPagerState.animateToPage(0)
                     },
                     isOverlay = true
                 )
@@ -336,8 +377,10 @@ fun FloatingPillNavBar(
                     selectedIndex = visualSelectedIndex,
                     icon = Icons.Filled.Build,
                     label = stringResource(MainTab.Tools.labelResId),
+                    selectedColor = accentColor,
+                    enabled = isTabClickEnabled,
                     onClick = {
-                        if (!isDragging) mainPagerState.animateToPage(1)
+                        if (isTabClickEnabled) mainPagerState.animateToPage(1)
                     },
                     isOverlay = true
                 )
@@ -346,8 +389,10 @@ fun FloatingPillNavBar(
                     selectedIndex = visualSelectedIndex,
                     icon = Icons.Filled.Settings,
                     label = stringResource(MainTab.Settings.labelResId),
+                    selectedColor = accentColor,
+                    enabled = isTabClickEnabled,
                     onClick = {
-                        if (!isDragging) mainPagerState.animateToPage(2)
+                        if (isTabClickEnabled) mainPagerState.animateToPage(2)
                     },
                     isOverlay = true
                 )
@@ -369,8 +414,8 @@ fun FloatingPillNavBar(
                             -progressOffset + panelOffset
                         }
                     }
-                    .then(interactiveHighlight.gestureModifier)
-                    .then(dampedDragAnimation.modifier)
+                    .then(if (isDragEnabled) interactiveHighlight.gestureModifier else Modifier)
+                    .then(if (isDragEnabled) dampedDragAnimation.modifier else Modifier)
                     .then(
                         if (supportsLiquidGlass) {
                             Modifier.drawBackdrop(
@@ -438,6 +483,8 @@ private fun RowScope.TabItem(
     selectedIndex: Int,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
+    selectedColor: Color,
+    enabled: Boolean,
     onClick: () -> Unit,
     isOverlay: Boolean = false
 ) {
@@ -445,12 +492,17 @@ private fun RowScope.TabItem(
     val selected = index == selectedIndex
     val isDark = ThemeManager.shouldUseDarkTheme()
     val base = if (isDark) Color.White else Color.Black
-    val fg = base
+    val fg = when {
+        isOverlay -> Color.Unspecified
+        selected -> selectedColor
+        else -> base.copy(alpha = 0.82f)
+    }
 
     Column(
         modifier = Modifier
             .weight(1f)
             .clickable(
+                enabled = enabled,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
@@ -461,13 +513,13 @@ private fun RowScope.TabItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (isOverlay) Color.Unspecified else fg,
+            tint = fg,
             modifier = Modifier
                 .size(20.dp)
         )
         Text(
             text = label,
-            color = if (isOverlay) Color.Unspecified else fg,
+            color = fg,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             modifier = Modifier.padding(top = 2.dp)

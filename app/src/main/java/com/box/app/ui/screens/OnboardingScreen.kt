@@ -54,6 +54,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.launch
 
 @Composable
 fun OnboardingScreen(
@@ -61,6 +62,7 @@ fun OnboardingScreen(
 ) {
     val context = LocalContext.current
     val c = appColors()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     var tosAccepted by rememberSaveable { mutableStateOf(false) }
 
@@ -90,8 +92,9 @@ fun OnboardingScreen(
     )
 
     var hasRoot by remember { mutableStateOf(false) }
+    var requestingRoot by remember { mutableStateOf(false) }
     LaunchedEffect(envRefreshVersion) {
-        hasRoot = runCatching { EnvironmentChecker.check().hasRoot }.getOrDefault(false)
+        hasRoot = runCatching { EnvironmentChecker.check(forceRefresh = true).hasRoot }.getOrDefault(false)
     }
 
     val hasNotificationsPermission = remember(permissionRefreshVersion) {
@@ -134,6 +137,20 @@ fun OnboardingScreen(
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         runCatching { context.startActivity(intent) }
+    }
+
+    fun requestRootPermission() {
+        if (requestingRoot) return
+        scope.launch {
+            requestingRoot = true
+            val granted = runCatching { EnvironmentChecker.requestRootAccess() }.getOrDefault(false)
+            hasRoot = if (granted) {
+                true
+            } else {
+                runCatching { EnvironmentChecker.check(forceRefresh = true).hasRoot }.getOrDefault(false)
+            }
+            requestingRoot = false
+        }
     }
 
     Surface(
@@ -186,8 +203,9 @@ fun OnboardingScreen(
                         title = stringResource(R.string.onboarding_perm_root_title),
                         desc = stringResource(R.string.onboarding_perm_root_desc),
                         granted = hasRoot,
-                        actionLabel = null,
-                        onAction = null
+                        actionLabel = if (hasRoot) null else stringResource(R.string.onboarding_perm_request),
+                        onAction = if (hasRoot) null else ({ requestRootPermission() }),
+                        actionEnabled = !requestingRoot
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     PermissionRow(
@@ -307,7 +325,8 @@ private fun PermissionRow(
     desc: String,
     granted: Boolean?,
     actionLabel: String?,
-    onAction: (() -> Unit)?
+    onAction: (() -> Unit)?,
+    actionEnabled: Boolean = true
 ) {
     val c = appColors()
     Row(
@@ -342,6 +361,7 @@ private fun PermissionRow(
                     OutlinedButton(
                         border = BorderStroke(1.dp, c.divider.copy(alpha = 0.75f)),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = c.textSecondary),
+                        enabled = actionEnabled,
                         onClick = onAction
                     ) {
                         Text(text = actionLabel)
@@ -358,6 +378,7 @@ private fun PermissionRow(
                     OutlinedButton(
                         border = BorderStroke(1.dp, c.divider.copy(alpha = 0.75f)),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = c.textSecondary),
+                        enabled = actionEnabled,
                         onClick = onAction
                     ) {
                         Text(text = actionLabel)

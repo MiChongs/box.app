@@ -4,14 +4,13 @@ import android.app.Activity
 import android.os.SystemClock
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.tween
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -48,14 +47,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
-import kotlin.math.abs
 import androidx.compose.runtime.mutableFloatStateOf
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sign
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.snapshotFlow
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -105,31 +106,52 @@ class MainPagerState(
     }
 
     fun animateToPage(targetIndex: Int) {
-        if (targetIndex == selectedPage) return
+        val boundedTarget = targetIndex.coerceIn(0, pagerState.pageCount - 1)
+        if (
+            boundedTarget == selectedPage &&
+            boundedTarget == pagerState.currentPage &&
+            !pagerState.isScrollInProgress &&
+            !isNavigating
+        ) return
 
         navJob?.cancel()
         navSequence += 1
         val seq = navSequence
-        selectedPage = targetIndex
+        selectedPage = boundedTarget
         isNavigating = true
-
-        val distance = abs(targetIndex - pagerState.currentPage).coerceAtLeast(2)
-        val duration = 100 * distance + 100
-
-        val layoutInfo = pagerState.layoutInfo
-        val pageSize = layoutInfo.pageSize + layoutInfo.pageSpacing
-        val currentDistanceInPages =
-            targetIndex - pagerState.currentPage - pagerState.currentPageOffsetFraction
-        val scrollPixels = currentDistanceInPages * pageSize
+        val distance = abs(boundedTarget - pagerState.currentPage).coerceAtLeast(1)
+        val duration = 120 * distance + 120
 
         navJob = coroutineScope.launch {
             try {
-                pagerState.animateScrollBy(
-                    value = scrollPixels,
-                    animationSpec = tween(easing = EaseInOut, durationMillis = duration)
+                pagerState.animateScrollToPage(
+                    page = boundedTarget,
+                    pageOffsetFraction = 0f,
+                    animationSpec = tween(
+                        durationMillis = duration,
+                        easing = EaseInOut
+                    )
                 )
+                if (pagerState.currentPage != boundedTarget) {
+                    pagerState.scrollToPage(
+                        page = boundedTarget,
+                        pageOffsetFraction = 0f
+                    )
+                }
             } finally {
                 if (seq == navSequence) {
+                    try {
+                        withContext(NonCancellable) {
+                            if (pagerState.currentPage != boundedTarget) {
+                                pagerState.scrollToPage(
+                                    page = boundedTarget,
+                                    pageOffsetFraction = 0f
+                                )
+                            }
+                        }
+                    } catch (_: Throwable) {
+                        // Keep navigation state recoverable even if pager sync fails transiently.
+                    }
                     isNavigating = false
                 }
             }

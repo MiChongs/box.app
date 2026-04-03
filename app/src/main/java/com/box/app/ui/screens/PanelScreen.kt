@@ -243,6 +243,20 @@ fun PanelScreen(
         return prefs.getString(panelUrlKey, null)?.takeIf { it.isNotBlank() }
     }
 
+    fun syncLocalPanelUrl(showLoading: Boolean) {
+        scope.launch {
+            if (showLoading) panelLoading = true
+            try {
+                val resolved = resolvePanelUrlAndCacheWithRetry()
+                if (!resolved.isNullOrBlank() && selectedPanelId == builtInPanel.id) {
+                    panelUrl = resolved
+                }
+            } finally {
+                if (showLoading) panelLoading = false
+            }
+        }
+    }
+
     fun applySelectedPanel(panel: PanelEntry) {
         val panelChanged = selectedPanelId != panel.id
         selectedPanelId = panel.id
@@ -258,27 +272,18 @@ fun PanelScreen(
         if (panel.id == builtInPanel.id) {
             val cachedLocal = getCachedLocalPanelUrl()
             panelUrl = cachedLocal
-
-            if (cachedLocal.isNullOrBlank()) {
-                scope.launch {
-                    panelLoading = true
-                    panelUrl = resolvePanelUrlAndCacheWithRetry()
-                    panelLoading = false
-                }
-            }
+            syncLocalPanelUrl(showLoading = cachedLocal.isNullOrBlank())
         } else {
             panelUrl = panel.url
+            // Keep local panel URL cache fresh even while currently using online panels.
+            syncLocalPanelUrl(showLoading = false)
         }
     }
 
     LaunchedEffect(Unit) {
         HomeRepository.startPolling()
-        // First open without cache: resolve once (built-in local panel only).
-        if (selectedPanelId == builtInPanel.id && panelUrl.isNullOrBlank()) {
-            panelLoading = true
-            panelUrl = resolvePanelUrlAndCacheWithRetry()
-            panelLoading = false
-        }
+        val shouldShowLoading = selectedPanelId == builtInPanel.id && panelUrl.isNullOrBlank()
+        syncLocalPanelUrl(showLoading = shouldShowLoading)
     }
 
     LaunchedEffect(panelUrl) {
@@ -468,12 +473,23 @@ fun PanelScreen(
                 onClick = {
                     panelWebError = null
                     refreshing = true
-                    if (selectedPanelId == builtInPanel.id && panelUrl.isNullOrBlank()) {
+                    if (selectedPanelId == builtInPanel.id) {
                         scope.launch {
-                            panelLoading = true
-                            panelUrl = resolvePanelUrlAndCacheWithRetry()
-                            panelLoading = false
-                            refreshing = false
+                            val hadUrlBefore = !panelUrl.isNullOrBlank()
+                            if (!hadUrlBefore) panelLoading = true
+                            try {
+                                val resolved = resolvePanelUrlAndCacheWithRetry()
+                                if (!resolved.isNullOrBlank()) {
+                                    panelUrl = resolved
+                                }
+                                if (!panelUrl.isNullOrBlank()) {
+                                    webReloadKey += 1
+                                } else {
+                                    refreshing = false
+                                }
+                            } finally {
+                                if (!hadUrlBefore) panelLoading = false
+                            }
                         }
                     } else {
                         webReloadKey += 1

@@ -71,6 +71,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -586,20 +587,38 @@ fun HomeScreen(
 
     // Environment dialog
 
-    val dialogKey = when {
+    val rawDialogKey = when {
         !env.hasRoot -> "root"
         !env.hasModule && !dialogPrefs.getBoolean("hide_module_dialog", false) -> "module"
         !env.hasScripts && !dialogPrefs.getBoolean("hide_scripts_dialog", false) -> "scripts"
         else -> ""
     }
+    var debouncedDialogKey by rememberSaveable { mutableStateOf("") }
+    val envDialogDebounceMs = 8_000L
+
+    LaunchedEffect(env.checked, rawDialogKey) {
+        if (!env.checked || rawDialogKey.isBlank()) {
+            debouncedDialogKey = ""
+            return@LaunchedEffect
+        }
+        delay(envDialogDebounceMs)
+        if (env.checked && rawDialogKey.isNotBlank()) {
+            debouncedDialogKey = rawDialogKey
+        }
+    }
 
     LaunchedEffect(env.isReady) {
         if (env.isReady) {
             lastDialogKey = ""
+            debouncedDialogKey = ""
         }
     }
 
-    val shouldShowDialog = env.checked && dialogKey.isNotBlank() && dialogKey != lastDialogKey
+    val dialogKey = debouncedDialogKey
+    val shouldShowDialog = env.checked &&
+        dialogKey.isNotBlank() &&
+        dialogKey == rawDialogKey &&
+        dialogKey != lastDialogKey
 
     if (shouldShowDialog) {
         AlertDialog(
@@ -812,7 +831,19 @@ fun HomeScreen(
                                 "ip" -> HomeCardModel(
                                     title = stringResource(R.string.home_card_ip),
                                     value = metricsState.ip,
-                                    subtitle = "",
+                                    subtitle = if (metricsState.ipMode == IpMode.LAN) {
+                                        stringResource(
+                                            R.string.home_ip_subtitle_interface,
+                                            metricsState.lanInterface.takeIf { it.isNotBlank() && it != "-" } ?: "-"
+                                        )
+                                    } else {
+                                        stringResource(
+                                            R.string.home_ip_subtitle_region,
+                                            metricsState.publicCountry.takeIf { it.isNotBlank() && it != "-" }
+                                                ?: metricsState.publicCountryCode.takeIf { it.isNotBlank() }
+                                                ?: "-"
+                                        )
+                                    },
                                     kind = HomeMetricKind.Ip,
                                     accent = Color(0xFF2DA44E),
                                     badgeText = if (metricsState.ipMode.name == "LAN") {
@@ -842,8 +873,16 @@ fun HomeScreen(
                                 )
                                 "subscription" -> HomeCardModel(
                                     title = stringResource(R.string.home_card_subscription),
-                                    value = metricsState.subscriptionCount,
-                                    subtitle = metricsState.subscriptionSubtitle,
+                                    value = if (metricsState.subscriptionTotalBytes > 0L) {
+                                        HomeMetricsApi.formatBytes(metricsState.subscriptionUsedBytes)
+                                    } else {
+                                        "-"
+                                    },
+                                    subtitle = if (metricsState.subscriptionTotalBytes > 0L) {
+                                        HomeMetricsApi.formatBytes(metricsState.subscriptionTotalBytes)
+                                    } else {
+                                        "-"
+                                    },
                                     kind = HomeMetricKind.Subscription,
                                     accent = Color(0xFF8B5CF6),
                                     progress = metricsState.subscriptionProgress,
@@ -862,6 +901,7 @@ fun HomeScreen(
                                     subtitle = metricsState.ram,
                                     kind = HomeMetricKind.System,
                                     accent = Color(0xFF64748B),
+                                    isActive = isRunning,
                                     onClick = { showSystemDialog = true }
                                 )
                                 else -> null

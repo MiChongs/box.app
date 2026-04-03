@@ -1,6 +1,5 @@
-package com.box.app.ui.components.bottomsheets
+﻿package com.box.app.ui.components.bottomsheets
 
-import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -56,6 +55,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -84,6 +84,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
@@ -162,7 +163,7 @@ fun AppModalBottomSheet(
 ) {
 
     val backdrop = LocalSheetBackdrop.current
-    val supportsLiquidGlass = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val supportsLiquidGlass = ThemeManager.shouldUseBlurEffects()
     val effectiveBackdrop = if (supportsLiquidGlass) backdrop else null
     val baseDensity = LocalDensity.current
     val uiScale by UiScaleManager.uiScale.collectAsState()
@@ -267,6 +268,15 @@ fun AppModalBottomSheet(
     val bottomSheetBlur by ThemeManager.bottomSheetBlur.collectAsState()
     val bottomSheetBackdrop = rememberLayerBackdrop()
     val useBackdropBlur = supportsLiquidGlass && bottomSheetBlur
+    var backdropTick by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(useBackdropBlur) {
+        if (!useBackdropBlur) return@LaunchedEffect
+        while (isActive) {
+            delay(180)
+            backdropTick++
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -344,6 +354,11 @@ fun AppModalBottomSheet(
                                     drawRect(containerColor.copy(alpha = if (isDark) 0.26f else 0.34f))
                                 }
                             )
+                                // Keep sheet backdrop sampling live while host content updates.
+                                .drawWithContent {
+                                    backdropTick
+                                    drawContent()
+                                }
                         } else {
                             Modifier.background(containerColor)
                         }
@@ -1356,12 +1371,14 @@ private suspend fun loadBoxServiceInfo(): BoxServiceInfo {
 }
 
 private enum class UpdateDownloadUiState { Idle, Downloading, Success, Failed }
+enum class UpdateSheetMode { MODULE, APP }
 
 @Composable
 fun UpdateBottomSheet(
     updateResult: com.box.app.data.model.UpdateCheckResult,
+    mode: UpdateSheetMode = UpdateSheetMode.MODULE,
     onDismiss: () -> Unit = {},
-    onDownload: suspend (com.box.app.data.model.ReleaseInfo) -> Boolean = { false },
+    onDownload: suspend (com.box.app.data.model.ReleaseInfo, (Int?) -> Unit) -> Boolean = { _, _ -> false },
     onOpenInBrowser: (String) -> Unit = {}
 ) {
     val c = appColors()
@@ -1371,13 +1388,45 @@ fun UpdateBottomSheet(
     val scope = rememberCoroutineScope()
     var activeDownloadTag by remember { mutableStateOf<String?>(null) }
     var activeDownloadState by remember { mutableStateOf(UpdateDownloadUiState.Idle) }
+    var activeDownloadProgressPercent by remember { mutableStateOf<Int?>(null) }
+
+    fun launchDownload(release: com.box.app.data.model.ReleaseInfo) {
+        if (release.downloadUrl.isBlank()) return
+        if (activeDownloadState == UpdateDownloadUiState.Downloading) return
+
+        activeDownloadTag = release.tag
+        activeDownloadState = UpdateDownloadUiState.Downloading
+        activeDownloadProgressPercent = 0
+
+        scope.launch {
+            val ok = runCatching {
+                onDownload(release) { percent ->
+                    scope.launch {
+                        if (activeDownloadTag == release.tag && activeDownloadState == UpdateDownloadUiState.Downloading) {
+                            activeDownloadProgressPercent = percent?.coerceIn(0, 100)
+                        }
+                    }
+                }
+            }.getOrDefault(false)
+            activeDownloadState = if (ok) UpdateDownloadUiState.Success else UpdateDownloadUiState.Failed
+            delay(1500)
+            if (activeDownloadTag == release.tag) {
+                activeDownloadTag = null
+                activeDownloadState = UpdateDownloadUiState.Idle
+                activeDownloadProgressPercent = null
+            }
+        }
+    }
+
+    fun currentDownloadStateFor(release: com.box.app.data.model.ReleaseInfo): UpdateDownloadUiState {
+        return if (activeDownloadTag == release.tag) activeDownloadState else UpdateDownloadUiState.Idle
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 0.dp)
     ) {
-        // Handle
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1410,16 +1459,18 @@ fun UpdateBottomSheet(
                 .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 标题
             Text(
-                text = if (updateResult.hasUpdate) stringResource(R.string.bottomsheet_update_available) else stringResource(R.string.bottomsheet_no_updates_available),
+                text = when {
+                    !updateResult.hasUpdate -> stringResource(R.string.bottomsheet_no_updates_available)
+                    mode == UpdateSheetMode.APP -> stringResource(R.string.bottomsheet_app_update_available)
+                    else -> stringResource(R.string.bottomsheet_update_available)
+                },
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = c.textPrimary,
                 modifier = Modifier.padding(horizontal = 4.dp)
             )
 
-            // 当前版本信息
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1444,66 +1495,98 @@ fun UpdateBottomSheet(
                 }
             }
 
-            // 正式版信息
-            updateResult.stableRelease?.let { release ->
-                UpdateReleaseCard(
-                    title = if (updateResult.recommendedRelease == release) stringResource(R.string.bottomsheet_release_stable_recommended) else stringResource(R.string.bottomsheet_release_stable),
-                    release = release,
-                    isRecommended = updateResult.recommendedRelease == release,
-                    isDownloading = activeDownloadTag == release.tag && activeDownloadState == UpdateDownloadUiState.Downloading,
-                    downloadState = if (activeDownloadTag == release.tag) activeDownloadState else UpdateDownloadUiState.Idle,
-                    onDownload = {
-                        if (release.downloadUrl.isBlank()) return@UpdateReleaseCard
-                        if (activeDownloadState == UpdateDownloadUiState.Downloading) return@UpdateReleaseCard
-
-                        activeDownloadTag = release.tag
-                        activeDownloadState = UpdateDownloadUiState.Downloading
-
-                        scope.launch {
-                            val ok = runCatching { onDownload(release) }.getOrDefault(false)
-                            activeDownloadState = if (ok) UpdateDownloadUiState.Success else UpdateDownloadUiState.Failed
-                            delay(1500)
-                            if (activeDownloadTag == release.tag) {
-                                activeDownloadTag = null
-                                activeDownloadState = UpdateDownloadUiState.Idle
-                            }
-                        }
-                    },
-                    onOpenInBrowser = { onOpenInBrowser(release.url) }
-                )
+            val appRelease = if (mode == UpdateSheetMode.APP) {
+                updateResult.recommendedRelease
+                    ?: updateResult.stableRelease
+                    ?: updateResult.prereleaseRelease
+            } else {
+                null
             }
 
-            // 预发布版信息
-            updateResult.prereleaseRelease?.let { release ->
-                UpdateReleaseCard(
-                    title = if (updateResult.recommendedRelease == release) stringResource(R.string.bottomsheet_release_prerelease_recommended) else stringResource(R.string.bottomsheet_release_prerelease),
-                    release = release,
-                    isRecommended = updateResult.recommendedRelease == release,
-                    isDownloading = activeDownloadTag == release.tag && activeDownloadState == UpdateDownloadUiState.Downloading,
-                    downloadState = if (activeDownloadTag == release.tag) activeDownloadState else UpdateDownloadUiState.Idle,
-                    onDownload = {
-                        if (release.downloadUrl.isBlank()) return@UpdateReleaseCard
-                        if (activeDownloadState == UpdateDownloadUiState.Downloading) return@UpdateReleaseCard
+            if (mode == UpdateSheetMode.APP) {
+                if (appRelease != null) {
+                    UpdateAppReleaseCard(
+                        release = appRelease,
+                        noAssetText = stringResource(R.string.bottomsheet_no_app_asset),
+                        isDownloading = activeDownloadTag == appRelease.tag && activeDownloadState == UpdateDownloadUiState.Downloading,
+                        downloadProgressPercent = if (activeDownloadTag == appRelease.tag) activeDownloadProgressPercent else null,
+                        downloadState = currentDownloadStateFor(appRelease),
+                        onDownload = { launchDownload(appRelease) },
+                        onOpenInBrowser = { onOpenInBrowser(appRelease.url) }
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedRectangle(18.dp))
+                            .background(c.cardAlt.copy(alpha = if (isDark) 0.58f else 0.72f))
+                    ) {
+                        Text(
+                            text = stringResource(R.string.bottomsheet_no_app_asset),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = c.textSecondary,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+            } else {
+                updateResult.stableRelease?.let { release ->
+                    UpdateReleaseCard(
+                        title = if (updateResult.recommendedRelease == release) {
+                            stringResource(R.string.bottomsheet_release_stable_recommended)
+                        } else {
+                            stringResource(R.string.bottomsheet_release_stable)
+                        },
+                        release = release,
+                        isRecommended = updateResult.recommendedRelease == release,
+                        showRecommendedBadge = true,
+                        showReleaseType = true,
+                        showPrereleaseWarning = true,
+                        versionText = release.tag,
+                        downloadButtonText = stringResource(R.string.bottomsheet_download_module),
+                        noAssetText = stringResource(R.string.bottomsheet_no_module_asset),
+                        isDownloading = activeDownloadTag == release.tag && activeDownloadState == UpdateDownloadUiState.Downloading,
+                        downloadProgressPercent = if (activeDownloadTag == release.tag) activeDownloadProgressPercent else null,
+                        downloadState = currentDownloadStateFor(release),
+                        onDownload = { launchDownload(release) },
+                        onOpenInBrowser = { onOpenInBrowser(release.url) }
+                    )
+                }
 
-                        activeDownloadTag = release.tag
-                        activeDownloadState = UpdateDownloadUiState.Downloading
-
-                        scope.launch {
-                            val ok = runCatching { onDownload(release) }.getOrDefault(false)
-                            activeDownloadState = if (ok) UpdateDownloadUiState.Success else UpdateDownloadUiState.Failed
-                            delay(1500)
-                            if (activeDownloadTag == release.tag) {
-                                activeDownloadTag = null
-                                activeDownloadState = UpdateDownloadUiState.Idle
-                            }
-                        }
-                    },
-                    onOpenInBrowser = { onOpenInBrowser(release.url) }
-                )
+                updateResult.prereleaseRelease?.let { release ->
+                    UpdateReleaseCard(
+                        title = if (updateResult.recommendedRelease == release) {
+                            stringResource(R.string.bottomsheet_release_prerelease_recommended)
+                        } else {
+                            stringResource(R.string.bottomsheet_release_prerelease)
+                        },
+                        release = release,
+                        isRecommended = updateResult.recommendedRelease == release,
+                        showRecommendedBadge = true,
+                        showReleaseType = true,
+                        showPrereleaseWarning = true,
+                        versionText = release.tag,
+                        downloadButtonText = stringResource(R.string.bottomsheet_download_module),
+                        noAssetText = stringResource(R.string.bottomsheet_no_module_asset),
+                        isDownloading = activeDownloadTag == release.tag && activeDownloadState == UpdateDownloadUiState.Downloading,
+                        downloadProgressPercent = if (activeDownloadTag == release.tag) activeDownloadProgressPercent else null,
+                        downloadState = currentDownloadStateFor(release),
+                        onDownload = { launchDownload(release) },
+                        onOpenInBrowser = { onOpenInBrowser(release.url) }
+                    )
+                }
             }
 
-            // 如果没有可用更新，显示提示信息
-            if (updateResult.stableRelease == null && updateResult.prereleaseRelease == null) {
+            val noModuleRelease = updateResult.stableRelease == null &&
+                updateResult.prereleaseRelease == null &&
+                updateResult.recommendedRelease == null
+            val shouldShowLatestCard = if (mode == UpdateSheetMode.APP) {
+                !updateResult.hasUpdate
+            } else {
+                !updateResult.hasUpdate && noModuleRelease
+            }
+
+            if (shouldShowLatestCard) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1520,7 +1603,11 @@ fun UpdateBottomSheet(
                             style = MaterialTheme.typography.headlineMedium
                         )
                         Text(
-                            text = stringResource(R.string.bottomsheet_latest_version_title),
+                            text = if (mode == UpdateSheetMode.APP) {
+                                stringResource(R.string.bottomsheet_app_latest_version_title)
+                            } else {
+                                stringResource(R.string.bottomsheet_latest_version_title)
+                            },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = c.textPrimary
@@ -1539,23 +1626,164 @@ fun UpdateBottomSheet(
 }
 
 @Composable
-private fun UpdateReleaseCard(
-    title: String,
+private fun UpdateAppReleaseCard(
     release: com.box.app.data.model.ReleaseInfo,
-    isRecommended: Boolean,
+    noAssetText: String,
     isDownloading: Boolean,
+    downloadProgressPercent: Int?,
     downloadState: UpdateDownloadUiState,
     onDownload: () -> Unit,
     onOpenInBrowser: () -> Unit
 ) {
     val c = appColors()
     val isDark = ThemeManager.shouldUseDarkTheme()
-    
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedRectangle(18.dp))
+            .background(c.cardAlt.copy(alpha = if (isDark) 0.55f else 0.75f))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.bottomsheet_app_release_latest),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = c.textPrimary
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = stringResource(
+                        R.string.bottomsheet_release_version,
+                        release.name.ifBlank { release.tag }
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = c.textPrimary
+                )
+
+                if (release.publishedAt.isNotBlank()) {
+                    val formattedDate = formatPublishDate(release.publishedAt)
+                    Text(
+                        text = stringResource(R.string.bottomsheet_release_date, formattedDate),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.textSecondary
+                    )
+                }
+            }
+
+            if (release.body.isNotBlank()) {
+                var notesExpanded by remember(release.tag) { mutableStateOf(false) }
+                val formattedBody = formatReleaseBody(release.body)
+                val canExpand = formattedBody.length > 280 || formattedBody.count { it == '\n' } > 7
+
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = stringResource(R.string.bottomsheet_release_notes),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = c.textPrimary
+                    )
+
+                    Text(
+                        text = formattedBody,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.textSecondary,
+                        maxLines = if (notesExpanded) Int.MAX_VALUE else 10,
+                        overflow = if (notesExpanded) TextOverflow.Clip else TextOverflow.Ellipsis
+                    )
+
+                    if (canExpand) {
+                        TextButton(
+                            onClick = { notesExpanded = !notesExpanded }
+                        ) {
+                            Text(
+                                text = if (notesExpanded) {
+                                    stringResource(R.string.bottomsheet_show_less)
+                                } else {
+                                    stringResource(R.string.bottomsheet_show_more)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onOpenInBrowser,
+                    enabled = true,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedRectangle(12.dp),
+                    border = BorderStroke(1.dp, c.divider.copy(alpha = if (isDark) 0.24f else 0.32f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = c.textPrimary
+                    )
+                ) {
+                    Text(
+                        text = stringResource(R.string.bottomsheet_view_in_browser),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+
+                androidx.compose.material3.Button(
+                    onClick = onDownload,
+                    enabled = release.downloadUrl.isNotBlank() && !isDownloading,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedRectangle(12.dp)
+                ) {
+                    Text(
+                        text = when {
+                            !release.downloadUrl.isNotBlank() -> noAssetText
+                            downloadState == UpdateDownloadUiState.Success -> stringResource(R.string.bottomsheet_download_success)
+                            downloadState == UpdateDownloadUiState.Failed -> stringResource(R.string.bottomsheet_download_failed)
+                            isDownloading -> {
+                                val downloading = stringResource(R.string.bottomsheet_downloading)
+                                val pct = downloadProgressPercent
+                                if (pct != null && pct in 0..100) "$downloading $pct%" else downloading
+                            }
+                            else -> stringResource(R.string.bottomsheet_download_app)
+                        },
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpdateReleaseCard(
+    title: String,
+    release: com.box.app.data.model.ReleaseInfo,
+    isRecommended: Boolean,
+    showRecommendedBadge: Boolean,
+    showReleaseType: Boolean,
+    showPrereleaseWarning: Boolean,
+    versionText: String,
+    downloadButtonText: String,
+    noAssetText: String,
+    isDownloading: Boolean,
+    downloadProgressPercent: Int?,
+    downloadState: UpdateDownloadUiState,
+    onDownload: () -> Unit,
+    onOpenInBrowser: () -> Unit
+) {
+    val c = appColors()
+    val isDark = ThemeManager.shouldUseDarkTheme()
+
     val baseColor = if (isRecommended) {
         if (isDark) Color(0xFF1F2937) else Color(0xFFF0F9FF)
     } else {
         c.cardAlt
     }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1566,7 +1794,6 @@ private fun UpdateReleaseCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 标题和推荐标签
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1578,8 +1805,8 @@ private fun UpdateReleaseCard(
                     fontWeight = FontWeight.SemiBold,
                     color = c.textPrimary
                 )
-                
-                if (isRecommended) {
+
+                if (showRecommendedBadge && isRecommended) {
                     Box(
                         modifier = Modifier
                             .background(
@@ -1598,14 +1825,13 @@ private fun UpdateReleaseCard(
                 }
             }
 
-            // 版本信息
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = stringResource(R.string.bottomsheet_release_version, release.tag),
+                    text = stringResource(R.string.bottomsheet_release_version, versionText),
                     style = MaterialTheme.typography.bodyMedium,
                     color = c.textPrimary
                 )
-                
+
                 if (release.commitSha.isNotBlank()) {
                     Text(
                         text = stringResource(R.string.bottomsheet_release_commit, release.commitSha),
@@ -1613,7 +1839,7 @@ private fun UpdateReleaseCard(
                         color = c.textSecondary
                     )
                 }
-                
+
                 if (release.publishedAt.isNotBlank()) {
                     val formattedDate = formatPublishDate(release.publishedAt)
                     Text(
@@ -1622,19 +1848,24 @@ private fun UpdateReleaseCard(
                         color = c.textSecondary
                     )
                 }
-                
-                Text(
-                    text = stringResource(
-                        R.string.bottomsheet_release_type,
-                        if (release.isPrerelease) stringResource(R.string.bottomsheet_release_type_prerelease) else stringResource(R.string.bottomsheet_release_type_stable)
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = c.textSecondary
-                )
+
+                if (showReleaseType) {
+                    Text(
+                        text = stringResource(
+                            R.string.bottomsheet_release_type,
+                            if (release.isPrerelease) stringResource(R.string.bottomsheet_release_type_prerelease) else stringResource(R.string.bottomsheet_release_type_stable)
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.textSecondary
+                    )
+                }
             }
 
-            // 更新内容
             if (release.body.isNotBlank()) {
+                var notesExpanded by remember(title, release.tag) { mutableStateOf(false) }
+                val formattedBody = formatReleaseBody(release.body)
+                val canExpand = formattedBody.length > 280 || formattedBody.count { it == '\n' } > 7
+
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = stringResource(R.string.bottomsheet_release_notes),
@@ -1642,20 +1873,32 @@ private fun UpdateReleaseCard(
                         fontWeight = FontWeight.Medium,
                         color = c.textPrimary
                     )
-                    
-                    val formattedBody = formatReleaseBody(release.body)
+
                     Text(
                         text = formattedBody,
                         style = MaterialTheme.typography.bodySmall,
                         color = c.textSecondary,
-                        maxLines = 6,
-                        overflow = TextOverflow.Ellipsis
+                        maxLines = if (notesExpanded) Int.MAX_VALUE else 10,
+                        overflow = if (notesExpanded) TextOverflow.Clip else TextOverflow.Ellipsis
                     )
+
+                    if (canExpand) {
+                        TextButton(
+                            onClick = { notesExpanded = !notesExpanded }
+                        ) {
+                            Text(
+                                text = if (notesExpanded) {
+                                    stringResource(R.string.bottomsheet_show_less)
+                                } else {
+                                    stringResource(R.string.bottomsheet_show_more)
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
-            // 警告信息（仅预发布版）
-            if (release.isPrerelease) {
+            if (showPrereleaseWarning && release.isPrerelease) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1679,26 +1922,26 @@ private fun UpdateReleaseCard(
                 }
             }
 
-            // 操作按钮
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // 在浏览器中查看按钮
                 androidx.compose.material3.OutlinedButton(
                     onClick = onOpenInBrowser,
                     enabled = true,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedRectangle(12.dp)
+                    shape = RoundedRectangle(12.dp),
+                    border = BorderStroke(1.dp, c.divider.copy(alpha = if (isDark) 0.24f else 0.32f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = c.textPrimary
+                    )
                 ) {
                     Text(
                         text = stringResource(R.string.bottomsheet_view_in_browser),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = c.textPrimary
+                        style = MaterialTheme.typography.labelMedium
                     )
                 }
 
-                // 下载模块按钮
                 androidx.compose.material3.Button(
                     onClick = onDownload,
                     enabled = release.downloadUrl.isNotBlank() && !isDownloading,
@@ -1707,11 +1950,15 @@ private fun UpdateReleaseCard(
                 ) {
                     Text(
                         text = when {
-                            !release.downloadUrl.isNotBlank() -> stringResource(R.string.bottomsheet_no_module_asset)
+                            !release.downloadUrl.isNotBlank() -> noAssetText
                             downloadState == UpdateDownloadUiState.Success -> stringResource(R.string.bottomsheet_download_success)
                             downloadState == UpdateDownloadUiState.Failed -> stringResource(R.string.bottomsheet_download_failed)
-                            isDownloading -> stringResource(R.string.bottomsheet_downloading)
-                            else -> stringResource(R.string.bottomsheet_download_module)
+                            isDownloading -> {
+                                val downloading = stringResource(R.string.bottomsheet_downloading)
+                                val pct = downloadProgressPercent
+                                if (pct != null && pct in 0..100) "$downloading $pct%" else downloading
+                            }
+                            else -> downloadButtonText
                         },
                         style = MaterialTheme.typography.labelMedium
                     )
@@ -1723,7 +1970,7 @@ private fun UpdateReleaseCard(
 
 private fun formatPublishDate(publishedAt: String): String {
     return try {
-        // 简单的日期格式化，可以根据需要改进
+        // 绠€鍗曠殑鏃ユ湡鏍煎紡鍖栵紝鍙互鏍规嵁闇€瑕佹敼杩?
         publishedAt.substringBefore("T")
     } catch (e: Exception) {
         publishedAt
@@ -1731,7 +1978,7 @@ private fun formatPublishDate(publishedAt: String): String {
 }
 
 private fun formatReleaseBody(body: String): String {
-    // 简单的Markdown格式化
+    // 绠€鍗曠殑Markdown鏍煎紡鍖?
     return body
         .replace("# ", "")
         .replace("## ", "")
@@ -1748,6 +1995,7 @@ fun AboutBottomSheet(
     appIcon: Any? = null,
     onModuleClick: () -> Unit = {},
     onChannelClick: () -> Unit = {},
+    onAppVersionClick: (() -> Unit)? = null,
     onModuleVersionClick: () -> Unit = {}
 ) {
     val c = appColors()
@@ -1849,7 +2097,19 @@ fun AboutBottomSheet(
                     Text(
                         text = appVersion,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = c.textSecondary
+                        color = c.textSecondary,
+                        modifier = if (onAppVersionClick != null) {
+                            Modifier
+                                .clip(RoundedRectangle(8.dp))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = onAppVersionClick
+                                )
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        } else {
+                            Modifier
+                        }
                     )
                 }
             }
@@ -1924,7 +2184,7 @@ private fun AboutInfoRow(
                         .clip(RoundedRectangle(8.dp))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = null // 移除水波纹特效
+                            indication = null // 绉婚櫎姘存尝绾圭壒鏁?
                         ) { onClick() }
                         .padding(vertical = 2.dp)
                 } else {
@@ -1957,7 +2217,7 @@ private fun AboutInfoRow(
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             color = if (onClick != null) {
-                // 可点击项目使用accent颜色
+                // 鍙偣鍑婚」鐩娇鐢╝ccent棰滆壊
                 Color(0xFF2DA44E)
             } else {
                 c.textPrimary
@@ -1966,3 +2226,4 @@ private fun AboutInfoRow(
         )
     }
 }
+

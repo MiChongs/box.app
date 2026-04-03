@@ -3,6 +3,7 @@ package com.box.app.data.repo
 import com.box.app.data.backend.BoxApi
 import com.box.app.data.backend.ShellExecutor
 import com.box.app.data.model.ConfigFsItem
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -270,35 +271,41 @@ object ConfigRepository {
     }
 
     suspend fun pullConfigFileFromUrl(coreName: String, url: String, fileName: String): Result<Unit> = withContext(Dispatchers.IO) {
-        val userAgent = when (coreName) {
-            "mihomo" -> "ClashMeta"
-            else -> coreName
+        try {
+            val userAgent = when (coreName) {
+                "mihomo" -> "ClashMeta"
+                else -> coreName
+            }
+
+            val client = OkHttpClient.Builder()
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .build()
+
+            val req = Request.Builder()
+                .url(url)
+                .get()
+                .header("User-Agent", userAgent)
+                .build()
+
+            val body = client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext Result(error = "HTTP ${resp.code}: ${resp.message}")
+                resp.body.string().orEmpty()
+            }
+
+            val relPath = "$coreName/$fileName"
+            pullConfigTextToRelativePath(
+                relativePath = relPath,
+                content = body,
+                fileNameForTemp = fileName
+            )
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (e: Exception) {
+            Result(error = e.message?.takeIf { it.isNotBlank() } ?: "Download failed")
         }
-
-        val client = OkHttpClient.Builder()
-            .followRedirects(true)
-            .followSslRedirects(true)
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .build()
-
-        val req = Request.Builder()
-            .url(url)
-            .get()
-            .header("User-Agent", userAgent)
-            .build()
-
-        val body = client.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) return@withContext Result(error = "HTTP ${resp.code}: ${resp.message}")
-            resp.body.string().orEmpty()
-        }
-
-        val relPath = "$coreName/$fileName"
-        pullConfigTextToRelativePath(
-            relativePath = relPath,
-            content = body,
-            fileNameForTemp = fileName
-        )
     }
 
     suspend fun pullConfigFileFromUrlToRelativePath(
@@ -306,30 +313,36 @@ object ConfigRepository {
         relativePath: String,
         userAgent: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
-        val client = OkHttpClient.Builder()
-            .followRedirects(true)
-            .followSslRedirects(true)
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .build()
+        try {
+            val client = OkHttpClient.Builder()
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .build()
 
-        val req = Request.Builder()
-            .url(url)
-            .get()
-            .header("User-Agent", userAgent)
-            .build()
+            val req = Request.Builder()
+                .url(url)
+                .get()
+                .header("User-Agent", userAgent)
+                .build()
 
-        val body = client.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) return@withContext Result(error = "HTTP ${resp.code}: ${resp.message}")
-            resp.body.string().orEmpty()
+            val body = client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext Result(error = "HTTP ${resp.code}: ${resp.message}")
+                resp.body.string().orEmpty()
+            }
+
+            val fileName = relativePath.substringAfterLast('/')
+            pullConfigTextToRelativePath(
+                relativePath = relativePath,
+                content = body,
+                fileNameForTemp = fileName
+            )
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (e: Exception) {
+            Result(error = e.message?.takeIf { it.isNotBlank() } ?: "Download failed")
         }
-
-        val fileName = relativePath.substringAfterLast('/')
-        pullConfigTextToRelativePath(
-            relativePath = relativePath,
-            content = body,
-            fileNameForTemp = fileName
-        )
     }
 
     private suspend fun pullConfigTextToRelativePath(

@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import com.box.app.utils.ThemeManager
 import com.box.app.utils.LanguageManager
 import com.box.app.utils.LatencyTargetsManager
+import com.box.app.utils.UpdateCheckManager
 import com.box.app.utils.UiScaleManager
 import com.box.app.utils.buildAppIconImageLoader
 import android.content.Context
@@ -25,6 +26,7 @@ class AppApplication : Application(), SingletonImageLoader.Factory {
         LanguageManager.init(this)
         LatencyTargetsManager.init(this)
         UiScaleManager.init(this)
+        UpdateCheckManager.start(this)
         initTextMate()
     }
 

@@ -958,13 +958,17 @@ object HomeRepository {
                 val cur = _metricsState.value
                 val nextMode = if (cur.ipMode == IpMode.LAN) IpMode.PUBLIC else IpMode.LAN
 
-                val lan = HomeMetricsApi.getLanIp()
+                val lanInfo = HomeMetricsApi.getLanIpInfo()
+                val lan = lanInfo.ip
+                val lanIface = lanInfo.iface
                 var pubIp = cur.publicIp
+                var publicCountry = cur.publicCountry
                 var cc = cur.publicCountryCode
                 if (nextMode == IpMode.PUBLIC) {
-                    val pair = HomeMetricsApi.getPublicIp()
-                    pubIp = pair.first
-                    cc = pair.second
+                    val summary = HomeMetricsApi.getPublicIpSummary()
+                    pubIp = summary.ip
+                    publicCountry = summary.country
+                    cc = summary.countryCode
                 }
 
                 val shown = if (nextMode == IpMode.LAN) lan else pubIp
@@ -972,7 +976,9 @@ object HomeRepository {
                     ipMode = nextMode,
                     ip = shown,
                     lanIp = lan,
+                    lanInterface = lanIface,
                     publicIp = pubIp,
+                    publicCountry = publicCountry,
                     publicCountryCode = cc
                 )
 
@@ -1266,7 +1272,9 @@ object HomeRepository {
                 ipMode = currentMetrics.ipMode,
                 ip = ip,
                 lanIp = currentMetrics.lanIp,
+                lanInterface = currentMetrics.lanInterface,
                 publicIp = currentMetrics.publicIp,
+                publicCountry = currentMetrics.publicCountry,
                 publicCountryCode = currentMetrics.publicCountryCode,
                 netDown = downText,
                 netUp = upText,
@@ -1370,13 +1378,17 @@ object HomeRepository {
     private suspend fun refreshIpInternal() {
         ipMutex.withLock {
             val cur = _metricsState.value
-            val lan = HomeMetricsApi.getLanIp()
+            val lanInfo = HomeMetricsApi.getLanIpInfo()
+            val lan = lanInfo.ip
+            val lanIface = lanInfo.iface
             var pubIp = cur.publicIp
+            var publicCountry = cur.publicCountry
             var cc = cur.publicCountryCode
             if (cur.ipMode == IpMode.PUBLIC) {
-                val pair = HomeMetricsApi.getPublicIp()
-                pubIp = pair.first
-                cc = pair.second
+                val summary = HomeMetricsApi.getPublicIpSummary()
+                pubIp = summary.ip
+                publicCountry = summary.country
+                cc = summary.countryCode
             }
             val shownRaw = if (cur.ipMode == IpMode.LAN) lan else pubIp
             val shown = shownRaw
@@ -1384,7 +1396,9 @@ object HomeRepository {
             _metricsState.value = cur.copy(
                 ip = shown,
                 lanIp = lan,
+                lanInterface = lanIface,
                 publicIp = pubIp,
+                publicCountry = publicCountry,
                 publicCountryCode = cc
             )
         }

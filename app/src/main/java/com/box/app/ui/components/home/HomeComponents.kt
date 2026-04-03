@@ -73,6 +73,7 @@ data class HomeCardModel(
     val accent: Color,
     val badgeText: String? = null,
     val progress: Float? = null,
+    val isActive: Boolean = true,
     val onClick: (() -> Unit)? = null,
     val cornerActionIcon: ImageVector? = null,
     val onCornerAction: (() -> Unit)? = null,
@@ -490,7 +491,7 @@ fun HomeHeroCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedRectangle(22.dp),
         colors = CardDefaults.cardColors(containerColor = container),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
             modifier = Modifier
@@ -761,3 +762,4 @@ private fun HeroActionButton(
         )
     }
 }
+

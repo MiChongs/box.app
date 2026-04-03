@@ -25,6 +25,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.rememberScrollState
@@ -51,6 +52,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.BlurOn
@@ -58,6 +60,7 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Notifications
@@ -99,6 +102,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
@@ -107,12 +111,14 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -139,6 +145,7 @@ import com.box.app.ui.components.ToolsRowIcon
 import com.box.app.ui.components.ToolsSectionCard
 import com.box.app.ui.components.bottomsheets.AboutBottomSheet
 import com.box.app.ui.components.bottomsheets.AppModalBottomSheet
+import com.box.app.ui.components.bottomsheets.UpdateSheetMode
 import com.box.app.ui.components.bottomsheets.UpdateBottomSheet
 import com.box.app.ui.components.contentPaddingWithNavBars
 import com.box.app.ui.components.LocalFloatingNavBarSpaceDp
@@ -155,6 +162,7 @@ import com.box.app.utils.LatencyTargetsManager
 import com.box.app.utils.ThemeManager
 import com.box.app.utils.ThemeMode
 import com.box.app.utils.UiScaleManager
+import com.box.app.utils.UpdateCheckManager
 import com.box.app.BuildConfig
 import com.box.app.R
 import com.kyant.shapes.Capsule
@@ -307,9 +315,13 @@ private fun SettingsMainContent(
     val liquidGlassBlurDp by ThemeManager.liquidGlassBlurDp.collectAsState()
     val liquidGlassLensStrength by ThemeManager.liquidGlassLensStrength.collectAsState()
     val bottomSheetBlur by ThemeManager.bottomSheetBlur.collectAsState()
+    val blurEffectsEnabled by ThemeManager.blurEffectsEnabled.collectAsState()
+    val blurEffectsSupported = ThemeManager.supportsBlurEffects()
+    val blurEffectsActive = blurEffectsEnabled && blurEffectsSupported
     val uiScalePercent by UiScaleManager.uiScalePercent.collectAsState()
     val currentLanguage by LanguageManager.language.collectAsState()
     val latencyTargets by LatencyTargetsManager.targets.collectAsState()
+    val updateCheckStatus by UpdateCheckManager.status.collectAsState()
 
     var pendingUiScalePercent by rememberSaveable { mutableStateOf(uiScalePercent.toFloat()) }
     var uiScaleDragging by remember { mutableStateOf(false) }
@@ -348,6 +360,7 @@ private fun SettingsMainContent(
     var appVersionText by remember { mutableStateOf("") }
     var moduleVersionText by remember { mutableStateOf("-") }
     var updateResult by remember { mutableStateOf<com.box.app.data.model.UpdateCheckResult?>(null) }
+    var updateTarget by remember { mutableStateOf(UpdateTarget.MODULE) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var lastDownloadId by remember { mutableStateOf<Long?>(null) }
     var lastDownloadMime by remember { mutableStateOf<String?>(null) }
@@ -442,8 +455,18 @@ private fun SettingsMainContent(
         moduleVersionText = ver ?: context.getString(R.string.settings_module_not_installed)
     }
 
-    suspend fun checkForUpdates() {
-        updateResult = runCatching { BoxApi.checkForUpdates() }.getOrNull()
+    suspend fun checkForModuleUpdates() {
+        updateTarget = UpdateTarget.MODULE
+        val result = runCatching { BoxApi.checkForModuleUpdates() }.getOrNull()
+        updateResult = result
+        UpdateCheckManager.setModuleUpdateAvailable(result?.hasUpdate == true)
+    }
+
+    suspend fun checkForAppUpdates() {
+        updateTarget = UpdateTarget.APP
+        val result = runCatching { BoxApi.checkForAppUpdates(appVersionText) }.getOrNull()
+        updateResult = result
+        UpdateCheckManager.setAppUpdateAvailable(result?.hasUpdate == true)
     }
 
     val downloadOkHttpClient: OkHttpClient by remember {
@@ -459,11 +482,20 @@ private fun SettingsMainContent(
             n.endsWith(".tar.gz") -> "application/gzip"
             n.endsWith(".tgz") -> "application/gzip"
             n.endsWith(".tar") -> "application/x-tar"
+            n.endsWith(".apk") -> "application/vnd.android.package-archive"
             else -> "application/octet-stream"
         }
     }
 
-    suspend fun downloadModule(release: com.box.app.data.model.ReleaseInfo): Boolean {
+    suspend fun downloadReleaseAsset(
+        release: com.box.app.data.model.ReleaseInfo,
+        fallbackFileName: String,
+        onProgress: (Int?) -> Unit = {}
+    ): Boolean {
+        fun reportProgress(percent: Int?) {
+            onProgress(percent?.coerceIn(0, 100))
+        }
+
         val url = release.downloadUrl.trim()
         if (url.isBlank()) {
             runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(release.url))) }
@@ -472,8 +504,9 @@ private fun SettingsMainContent(
 
         val fileName = runCatching {
             Uri.parse(url).lastPathSegment?.takeIf { it.isNotBlank() }
-        }.getOrNull() ?: "box_${release.tag}.zip"
+        }.getOrNull() ?: fallbackFileName
         val mime = mimeTypeFromFileName(fileName)
+        reportProgress(0)
 
         if (Build.VERSION.SDK_INT >= 29) {
             val uri = withContext(Dispatchers.IO) {
@@ -489,14 +522,34 @@ private fun SettingsMainContent(
 
                 try {
                     val req = Request.Builder().get().url(url).build()
-                    downloadOkHttpClient.newCall(req).execute().use { resp ->
+                    val resp = downloadOkHttpClient.newCall(req).execute()
+                    try {
                         if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
                         val body = resp.body
+                        val totalBytes = body.contentLength()
+                        var downloadedBytes = 0L
+                        var lastPercent = -1
                         resolver.openOutputStream(targetUri, "w")?.use { out ->
                             body.byteStream().use { input ->
-                                input.copyTo(out)
+                                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                                while (true) {
+                                    val read = input.read(buffer)
+                                    if (read <= 0) break
+                                    out.write(buffer, 0, read)
+                                    downloadedBytes += read
+                                    if (totalBytes > 0L) {
+                                        val percent = ((downloadedBytes * 100L) / totalBytes).toInt().coerceIn(0, 100)
+                                        if (percent != lastPercent) {
+                                            lastPercent = percent
+                                            onProgress(percent)
+                                        }
+                                    }
+                                }
                             }
+                            out.flush()
                         } ?: throw IOException("Open output stream failed")
+                    } finally {
+                        runCatching { resp.close() }
                     }
 
                     ContentValues().apply {
@@ -516,6 +569,7 @@ private fun SettingsMainContent(
                 Toast.makeText(context, context.getString(R.string.settings_failed_check_updates), Toast.LENGTH_SHORT).show()
                 return false
             }
+            reportProgress(100)
 
             runCatching {
                 val viewIntent = Intent(Intent.ACTION_VIEW)
@@ -527,17 +581,121 @@ private fun SettingsMainContent(
             return true
         }
 
-        return runCatching {
-            val req = DownloadManager.Request(Uri.parse(url))
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
-                .setMimeType(mime)
+        return withContext(Dispatchers.IO) {
+            try {
+                val req = DownloadManager.Request(Uri.parse(url))
+                    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+                    .setMimeType(mime)
 
-            val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-            lastDownloadId = dm.enqueue(req)
-            lastDownloadMime = mime
-            true
-        }.getOrDefault(false)
+                val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                val downloadId = dm.enqueue(req)
+                withContext(Dispatchers.Main) {
+                    lastDownloadId = downloadId
+                    lastDownloadMime = mime
+                }
+
+                var lastPercent = -1
+                var completed: Boolean? = null
+                while (completed == null) {
+                    val query = DownloadManager.Query().setFilterById(downloadId)
+                    val cursor = dm.query(query)
+                    if (cursor == null) {
+                        completed = false
+                        break
+                    }
+                    cursor.use {
+                        if (cursor.moveToFirst()) {
+                            val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                            val downloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                            val total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+
+                            if (total > 0L) {
+                                val percent = ((downloaded * 100L) / total).toInt().coerceIn(0, 100)
+                                if (percent != lastPercent) {
+                                    lastPercent = percent
+                                    onProgress(percent)
+                                }
+                            }
+
+                            when (status) {
+                                DownloadManager.STATUS_SUCCESSFUL -> {
+                                    onProgress(100)
+                                    completed = true
+                                }
+                                DownloadManager.STATUS_FAILED -> completed = false
+                            }
+                        }
+                    }
+
+                    if (completed == null) {
+                        delay(220)
+                    }
+                }
+                completed == true
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
+    suspend fun downloadModule(
+        release: com.box.app.data.model.ReleaseInfo,
+        onProgress: (Int?) -> Unit = {}
+    ): Boolean {
+        return downloadReleaseAsset(release, "box_${release.tag}.zip", onProgress)
+    }
+
+    suspend fun downloadApp(
+        release: com.box.app.data.model.ReleaseInfo,
+        onProgress: (Int?) -> Unit = {}
+    ): Boolean {
+        val flavor = if (BuildConfig.FLAVOR == "bfr") "bfr" else "box"
+        val buildType = BuildConfig.BUILD_TYPE.lowercase()
+        return downloadReleaseAsset(release, "app-${release.tag}-$flavor-$buildType.apk", onProgress)
+    }
+
+    suspend fun openUpdateSheetFor(
+        target: UpdateTarget,
+        closeAboutDialog: Boolean
+    ): Boolean {
+        return try {
+            when (target) {
+                UpdateTarget.MODULE -> {
+                    refreshModuleVersion()
+                    checkForModuleUpdates()
+                }
+                UpdateTarget.APP -> checkForAppUpdates()
+            }
+
+            val r = updateResult
+            if (r == null) {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_failed_check_updates),
+                    Toast.LENGTH_SHORT
+                ).show()
+                false
+            } else if (!r.hasUpdate) {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_already_up_to_date),
+                    Toast.LENGTH_SHORT
+                ).show()
+                false
+            } else {
+                showUpdateDialog = true
+                if (closeAboutDialog) showAboutDialog = false
+                true
+            }
+        } catch (_: Exception) {
+            Toast.makeText(
+                context,
+                context.getString(R.string.settings_failed_check_updates),
+                Toast.LENGTH_SHORT
+            ).show()
+            false
+        }
     }
 
     if (showAboutDialog) {
@@ -571,39 +729,14 @@ private fun SettingsMainContent(
                     }
                     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
                 },
+                onAppVersionClick = {
+                    scope.launch {
+                        openUpdateSheetFor(UpdateTarget.APP, closeAboutDialog = true)
+                    }
+                },
                 onModuleVersionClick = {
                     scope.launch {
-                        try {
-                            refreshModuleVersion()
-                            checkForUpdates()
-                            val r = updateResult
-                            if (r == null) {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.settings_failed_check_updates),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                return@launch
-                            }
-
-                            if (!r.hasUpdate) {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.settings_already_up_to_date),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                return@launch
-                            }
-
-                            showUpdateDialog = true
-                            showAboutDialog = false
-                        } catch (_: Exception) {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.settings_failed_check_updates),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
+                        openUpdateSheetFor(UpdateTarget.MODULE, closeAboutDialog = true)
                     }
                 }
             )
@@ -619,9 +752,13 @@ private fun SettingsMainContent(
         ) {
             UpdateBottomSheet(
                 updateResult = updateResult!!,
+                mode = if (updateTarget == UpdateTarget.APP) UpdateSheetMode.APP else UpdateSheetMode.MODULE,
                 onDismiss = { showUpdateDialog = false },
-                onDownload = { release ->
-                    downloadModule(release)
+                onDownload = { release, onProgress ->
+                    when (updateTarget) {
+                        UpdateTarget.MODULE -> downloadModule(release, onProgress)
+                        UpdateTarget.APP -> downloadApp(release, onProgress)
+                    }
                 },
                 onOpenInBrowser = { url ->
                     runCatching {
@@ -723,6 +860,24 @@ private fun SettingsMainContent(
                         onCheckedChange = { ThemeManager.setTrueBlack(context, it) },
                         showDivider = true
                     )
+
+                    SettingsToggleRow(
+                        icon = Icons.Filled.BlurOn,
+                        title = stringResource(R.string.settings_blur_effects),
+                        subtitle = stringResource(
+                            if (blurEffectsSupported) {
+                                R.string.settings_blur_effects_subtitle
+                            } else {
+                                R.string.settings_blur_effects_unsupported_subtitle
+                            }
+                        ),
+                        checked = blurEffectsActive,
+                        onCheckedChange = { ThemeManager.setBlurEffectsEnabled(context, it) },
+                        enabled = blurEffectsSupported,
+                        showDivider = true
+                    )
+
+                    if (blurEffectsActive) {
                     SettingsToggleRow(
                         icon = Icons.Filled.Palette,
                         title = stringResource(R.string.settings_liquid_glass_translucent),
@@ -791,6 +946,7 @@ private fun SettingsMainContent(
                             inactiveTrackColor = c.divider.copy(alpha = if (isDark) 0.16f else 0.06f)
                         )
                     )
+                    }
 
                     Text(
                         text = stringResource(R.string.settings_ui_scale, pendingUiScalePercent.roundToInt()),
@@ -1210,6 +1366,23 @@ private fun SettingsMainContent(
                     icon = Icons.Filled.Info,
                     title = stringResource(R.string.settings_version),
                     subtitle = "v$appVersionText",
+                    badge = {
+                        VersionUpdateBadge(
+                            isChecking = updateCheckStatus.isChecking,
+                            appHasUpdate = updateCheckStatus.appHasUpdate,
+                            moduleHasUpdate = updateCheckStatus.moduleHasUpdate,
+                            onAppClick = {
+                                scope.launch {
+                                    openUpdateSheetFor(UpdateTarget.APP, closeAboutDialog = false)
+                                }
+                            },
+                            onModuleClick = {
+                                scope.launch {
+                                    openUpdateSheetFor(UpdateTarget.MODULE, closeAboutDialog = false)
+                                }
+                            }
+                        )
+                    },
                     showDivider = true,
                     onClick = { showAboutDialog = true }
                 )
@@ -1225,6 +1398,172 @@ private fun SettingsMainContent(
         }
 
         item { Spacer(modifier = Modifier.height(8.dp)) }
+    }
+}
+
+@Composable
+private fun VersionUpdateBadge(
+    isChecking: Boolean,
+    appHasUpdate: Boolean,
+    moduleHasUpdate: Boolean,
+    onAppClick: (() -> Unit)? = null,
+    onModuleClick: (() -> Unit)? = null
+) {
+    if (!isChecking && !appHasUpdate && !moduleHasUpdate) return
+
+    val c = appColors()
+    val isDark = ThemeManager.shouldUseDarkTheme()
+    val chipBg = if (isDark) c.cardAlt.copy(alpha = 0.92f) else Color.White
+    val chipBorder = c.divider.copy(alpha = if (isDark) 0.9f else 0.78f)
+    val appTint = if (isDark) Color(0xFF7DD3FC) else Color(0xFF0369A1)
+    val moduleTint = if (isDark) Color(0xFFA7F3D0) else Color(0xFF166534)
+    val updateDot = if (isDark) Color(0xFFFF6478) else Color(0xFFE11D48)
+    val labelColor = c.textPrimary
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (isChecking && !appHasUpdate && !moduleHasUpdate) {
+            CheckingUpdateBadge(
+                containerColor = chipBg,
+                borderColor = chipBorder,
+                indicatorColor = if (isDark) Color(0xFFE2E8F0) else Color(0xFF475569)
+            )
+        } else {
+            if (appHasUpdate) {
+                UpdateTypeBadge(
+                    icon = Icons.Filled.Android,
+                    label = stringResource(R.string.settings_update_status_app),
+                    contentDescription = stringResource(R.string.settings_update_status_app_available),
+                    shape = Capsule(),
+                    containerColor = chipBg,
+                    borderColor = chipBorder,
+                    iconColor = appTint,
+                    labelColor = labelColor,
+                    dotColor = updateDot,
+                    onClick = onAppClick
+                )
+            }
+
+            if (moduleHasUpdate) {
+                UpdateTypeBadge(
+                    icon = Icons.Filled.Extension,
+                    label = stringResource(R.string.settings_update_status_module),
+                    contentDescription = stringResource(R.string.settings_update_status_module_available),
+                    shape = RoundedRectangle(8.dp),
+                    containerColor = chipBg,
+                    borderColor = chipBorder,
+                    iconColor = moduleTint,
+                    labelColor = labelColor,
+                    dotColor = updateDot,
+                    onClick = onModuleClick
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CheckingUpdateBadge(
+    containerColor: Color,
+    borderColor: Color,
+    indicatorColor: Color
+) {
+    val c = appColors()
+    Box(
+        modifier = Modifier
+            .height(24.dp)
+            .clip(RoundedRectangle(8.dp))
+            .background(containerColor)
+            .border(1.dp, borderColor, RoundedRectangle(8.dp))
+            .padding(horizontal = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            androidx.compose.material3.CircularProgressIndicator(
+                modifier = Modifier.size(11.dp),
+                strokeWidth = 1.8.dp,
+                color = indicatorColor
+            )
+            Text(
+                text = stringResource(R.string.settings_update_status_checking),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = c.textSecondary
+            )
+        }
+    }
+}
+
+@Composable
+private fun UpdateTypeDot(
+    color: Color
+) {
+    Box(
+        modifier = Modifier
+            .size(6.dp)
+            .clip(Capsule())
+            .background(color)
+    )
+}
+
+@Composable
+private fun UpdateTypeBadge(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    contentDescription: String,
+    shape: Shape,
+    containerColor: Color,
+    borderColor: Color,
+    iconColor: Color,
+    labelColor: Color,
+    dotColor: Color,
+    onClick: (() -> Unit)? = null
+) {
+    Box(
+        modifier = Modifier
+            .height(24.dp)
+            .clip(shape)
+            .background(containerColor)
+            .border(1.dp, borderColor, shape)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onClick
+                    )
+                } else {
+                    Modifier
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            modifier = Modifier
+                .clearAndSetSemantics { this.contentDescription = contentDescription }
+                .padding(start = 8.dp, end = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(13.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = labelColor
+            )
+            UpdateTypeDot(color = dotColor)
+        }
     }
 }
 
@@ -1298,6 +1637,7 @@ private fun SettingsTextFieldRow(
     )
 }
 
+private enum class UpdateTarget { MODULE, APP }
 private enum class BackupRestoreMode { BACKUP, RESTORE }
 private enum class BackupRestoreScope { MODULES, APPS, BOTH }
 

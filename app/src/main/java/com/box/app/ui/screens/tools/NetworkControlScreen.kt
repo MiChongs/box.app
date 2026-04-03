@@ -593,15 +593,14 @@ fun ToolsNetworkControlScreen(
                             title = stringResource(R.string.tools_network_control_hotspot_mac_enable_title),
                             subtitle = stringResource(R.string.tools_network_control_hotspot_mac_enable_subtitle),
                             checked = macFilterEnable,
-                            onCheckedChange = { macFilterEnable = it },
-                            enabled = enableNetworkControl
+                            onCheckedChange = { macFilterEnable = it }
                         )
 
                         ToolsRowIcon(
                             icon = if (macProxyMode == MacProxyMode.BLACKLIST) Icons.Filled.CheckCircle else Icons.Filled.Router,
                             title = stringResource(R.string.tools_network_control_hotspot_mac_mode_blacklist_title),
                             subtitle = stringResource(R.string.tools_network_control_hotspot_mac_mode_blacklist_subtitle),
-                            enabled = enableNetworkControl && macFilterEnable,
+                            enabled = macFilterEnable,
                             onClick = { macProxyMode = MacProxyMode.BLACKLIST }
                         )
 
@@ -610,7 +609,7 @@ fun ToolsNetworkControlScreen(
                             title = stringResource(R.string.tools_network_control_hotspot_mac_mode_whitelist_title),
                             subtitle = stringResource(R.string.tools_network_control_hotspot_mac_mode_whitelist_subtitle),
                             showDivider = false,
-                            enabled = enableNetworkControl && macFilterEnable,
+                            enabled = macFilterEnable,
                             onClick = { macProxyMode = MacProxyMode.WHITELIST }
                         )
 
@@ -618,7 +617,7 @@ fun ToolsNetworkControlScreen(
                             icon = Icons.Filled.Router,
                             rows = macs,
                             hint = stringResource(R.string.tools_network_control_hint_enter_mac),
-                            enabled = enableNetworkControl && macFilterEnable,
+                            enabled = macFilterEnable,
                             onRowsChange = { macs = it },
                             onIconClick = { idx ->
                                 hotspotMacPickerTargetIndex = idx

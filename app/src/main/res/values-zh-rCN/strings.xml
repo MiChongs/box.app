@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <!-- App -->
     <string name="app_name">Box</string>
 
@@ -132,9 +132,12 @@
     <string name="home_card_net_speed">网速</string>
     <string name="home_card_subscription">订阅</string>
     <string name="home_card_system">系统</string>
+    <string name="home_system_disabled_hint">服务未启用，启动服务后才会显示实时 CPU 与 RAM 指标。</string>
     <string name="home_ip_badge_lan">LAN</string>
-    <string name="home_ip_badge_pub">PUB</string>
-    <string name="home_ip_badge_pub_with_flag">PUB %1$s</string>
+    <string name="home_ip_badge_pub">WAN</string>
+    <string name="home_ip_badge_pub_with_flag">WAN %1$s</string>
+    <string name="home_ip_subtitle_interface">接口：%1$s</string>
+    <string name="home_ip_subtitle_region">地区：%1$s</string>
     <string name="home_ip_geo_sheet_title">公网 IP 详情</string>
     <string name="home_ip_geo_sheet_subtitle">IPv4 与 IPv6 检测详情</string>
     <string name="home_ip_geo_ipv4_title">IPv4</string>
@@ -149,8 +152,12 @@
     <string name="home_ip_geo_field_organization">organization</string>
     <string name="home_net_up_unknown">上行 -</string>
     <string name="home_net_up_value">上行 %1$s</string>
+    <string name="home_net_up_label">上行</string>
+    <string name="home_net_down_label">下行</string>
 
     <string name="home_subscription_total">总计 %1$s</string>
+    <string name="home_subscription_used_label">已用</string>
+    <string name="home_subscription_total_label">总量</string>
 
     <string name="home_service_status_running">运行中</string>
     <string name="home_service_status_unavailable">不可用</string>
@@ -239,6 +246,9 @@
     <string name="settings_true_black_subtitle">仅在深色模式生效</string>
     <string name="settings_liquid_glass_translucent">液态玻璃透亮效果</string>
     <string name="settings_liquid_glass_translucent_subtitle">开启：透亮玻璃。关闭：仅模糊。</string>
+    <string name="settings_blur_effects">模糊效果</string>
+    <string name="settings_blur_effects_subtitle">启用液态玻璃与背景模糊效果</string>
+    <string name="settings_blur_effects_unsupported_subtitle">需要 Android 12 及以上版本</string>
     <string name="settings_liquid_glass_lens_strength">折射强度</string>
     <string name="settings_liquid_glass_lens_strength_subtitle">调节玻璃折射效果强度</string>
     <string name="settings_liquid_glass_blur_strength">模糊强度</string>
@@ -311,6 +321,12 @@
     <string name="settings_section_about">关于</string>
     <string name="settings_section_about_subtitle">APP 与模块信息</string>
     <string name="settings_version">版本</string>
+    <string name="settings_update_status_checking">检测中</string>
+    <string name="settings_update_status_app">APP</string>
+    <string name="settings_update_status_module">模块</string>
+    <string name="settings_update_status_app_available">APP 有更新</string>
+    <string name="settings_update_status_module_available">模块有更新</string>
+    <string name="settings_update_status_both_available">APP + 模块有更新</string>
     <string name="settings_open_source_licenses">开源许可证</string>
     <string name="settings_open_source_licenses_subtitle">第三方库与许可声明</string>
     <string name="settings_module_not_installed">未安装</string>
@@ -485,6 +501,7 @@
     <string name="tools_cnip_bypass_ipv4_subtitle">仅绕过 IPv4 列表</string>
     <string name="tools_cnip_bypass_ipv6_title">绕过 CNIP (IPv6)</string>
     <string name="tools_cnip_bypass_ipv6_subtitle">仅绕过 IPv6 列表</string>
+    <string name="tools_cnip_ipset_hint">此功能依赖 ipset。可前往首页点击“系统”卡片查看是否可用。</string>
 
     <string name="tools_cnip_section_files_title">文件</string>
     <string name="tools_cnip_section_files_subtitle">CNIP 文件路径</string>
@@ -676,6 +693,9 @@
     <string name="bottomsheet_latest_version_title">你正在使用最新版本</string>
     <string name="bottomsheet_no_updates_available">当前没有可用更新</string>
     <string name="bottomsheet_update_available">有可用更新</string>
+    <string name="bottomsheet_app_update_available">应用更新可用</string>
+    <string name="bottomsheet_app_latest_version_title">你正在使用最新应用构建</string>
+    <string name="bottomsheet_app_release_latest">最新应用构建</string>
     <string name="bottomsheet_release_recommended">推荐</string>
     <string name="bottomsheet_release_version">版本：%1$s</string>
     <string name="bottomsheet_release_commit">提交：%1$s</string>
@@ -687,12 +707,16 @@
     <string name="bottomsheet_release_prerelease_recommended">预发布版（推荐）</string>
     <string name="bottomsheet_release_type">类型：%1$s</string>
     <string name="bottomsheet_release_notes">更新日志：</string>
-    <string name="bottomsheet_release_prerelease_warning">这是预发布版本，用于测试和调试。</string>
+    <string name="bottomsheet_show_more">显示更多</string>
+    <string name="bottomsheet_show_less">收起</string>
+    <string name="bottomsheet_release_prerelease_warning">这是预发布版本，用于测试和调试。App 基于最新预发布版构建。</string>
     <string name="bottomsheet_view_in_browser">在浏览器中查看</string>
 
     <string name="bottomsheet_download_module">下载模块</string>
+    <string name="bottomsheet_download_app">下载应用</string>
     <string name="bottomsheet_downloading">下载中</string>
     <string name="bottomsheet_no_module_asset">无模块资源</string>
+    <string name="bottomsheet_no_app_asset">无应用资源</string>
     <string name="bottomsheet_download_success">下载成功</string>
     <string name="bottomsheet_download_failed">下载失败</string>
 

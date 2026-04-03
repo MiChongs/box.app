@@ -1,6 +1,7 @@
 package com.box.app.utils
 
 import android.content.Context
+import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,6 +37,7 @@ object ThemeManager {
     private const val KEY_LIQUID_GLASS_BLUR_DP = "liquid_glass_blur_dp"
     private const val KEY_LIQUID_GLASS_LENS_STRENGTH = "liquid_glass_lens_strength"
     private const val KEY_BOTTOM_SHEET_BLUR = "bottom_sheet_blur"
+    private const val KEY_BLUR_EFFECTS_ENABLED = "blur_effects_enabled"
 
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
@@ -63,6 +65,9 @@ object ThemeManager {
     private val _bottomSheetBlur = MutableStateFlow(true)
     val bottomSheetBlur: StateFlow<Boolean> = _bottomSheetBlur.asStateFlow()
 
+    private val _blurEffectsEnabled = MutableStateFlow(false)
+    val blurEffectsEnabled: StateFlow<Boolean> = _blurEffectsEnabled.asStateFlow()
+
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val savedMode = prefs.getString(KEY_THEME_MODE, ThemeMode.SYSTEM.name)
@@ -73,6 +78,10 @@ object ThemeManager {
         _liquidGlassBlurDp.value = prefs.getFloat(KEY_LIQUID_GLASS_BLUR_DP, 6f)
         _liquidGlassLensStrength.value = prefs.getFloat(KEY_LIQUID_GLASS_LENS_STRENGTH, 1f)
         _bottomSheetBlur.value = prefs.getBoolean(KEY_BOTTOM_SHEET_BLUR, true)
+        _blurEffectsEnabled.value = prefs.getBoolean(KEY_BLUR_EFFECTS_ENABLED, false) && supportsBlurEffects()
+        if (!supportsBlurEffects() && prefs.contains(KEY_BLUR_EFFECTS_ENABLED)) {
+            prefs.edit().putBoolean(KEY_BLUR_EFFECTS_ENABLED, false).apply()
+        }
         
         // Load system bar settings
         val statusBarMode = prefs.getString(KEY_STATUS_BAR_MODE, SystemBarMode.TRANSPARENT.name)
@@ -133,6 +142,17 @@ object ThemeManager {
         prefs.edit().putBoolean(KEY_BOTTOM_SHEET_BLUR, enabled).apply()
     }
 
+    fun setBlurEffectsEnabled(context: Context, enabled: Boolean) {
+        val finalEnabled = enabled && supportsBlurEffects()
+        _blurEffectsEnabled.value = finalEnabled
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_BLUR_EFFECTS_ENABLED, finalEnabled).apply()
+    }
+
+    fun supportsBlurEffects(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+    fun isBlurEffectsEnabled(): Boolean = supportsBlurEffects() && _blurEffectsEnabled.value
+
     private fun applyAppCompatNightMode(mode: ThemeMode) {
         val nightMode = when (mode) {
             ThemeMode.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
@@ -151,5 +171,11 @@ object ThemeManager {
             ThemeMode.DARK -> true
             ThemeMode.SYSTEM -> systemInDark
         }
+    }
+
+    @Composable
+    fun shouldUseBlurEffects(): Boolean {
+        val enabled by blurEffectsEnabled.collectAsState()
+        return enabled && supportsBlurEffects()
     }
 }

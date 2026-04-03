@@ -12,10 +12,10 @@ internal object EnvironmentChecker {
 
     private const val CACHE_MS = 5_000L
 
-    suspend fun check(): EnvironmentState {
+    suspend fun check(forceRefresh: Boolean = false): EnvironmentState {
         val now = System.currentTimeMillis()
         val snap = cached
-        if (snap != null && (now - cachedAtMs) < CACHE_MS) return snap
+        if (!forceRefresh && snap != null && (now - cachedAtMs) < CACHE_MS) return snap
 
         val res = try {
             ShellExecutor.execute(
@@ -49,5 +49,25 @@ internal object EnvironmentChecker {
         cached = out
         cachedAtMs = now
         return out
+    }
+
+    fun invalidateCache() {
+        cached = null
+        cachedAtMs = 0L
+    }
+
+    suspend fun requestRootAccess(): Boolean {
+        invalidateCache()
+        val res = try {
+            ShellExecutor.execute("id -u 2>/dev/null")
+        } catch (_: Exception) {
+            return false
+        }
+
+        val granted = res.exitCode == 0 && res.stdout.trim() == "0"
+        if (granted) {
+            check(forceRefresh = true)
+        }
+        return granted
     }
 }

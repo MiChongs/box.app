@@ -210,6 +210,8 @@ fun ToolsUpdateCnipScreen(
                     title = stringResource(R.string.tools_cnip_section_general_title),
                     subtitle = stringResource(R.string.tools_cnip_section_general_subtitle)
                 ) {
+                    CnipIpsetHint()
+                    Spacer(modifier = Modifier.height(6.dp))
                     SettingsToggleRow(
                         icon = Icons.Filled.Public,
                         title = stringResource(R.string.tools_cnip_bypass_title),
@@ -376,6 +378,49 @@ fun ToolsUpdateCnipScreen(
         if (loading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 androidx.compose.material3.CircularProgressIndicator(color = c.textPrimary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CnipIpsetHint() {
+    val c = appColors()
+    val accent = appAccentColor()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedRectangle(14.dp))
+            .background(accent.copy(alpha = 0.14f))
+            .padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .background(accent.copy(alpha = 0.22f), shape = RoundedRectangle(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(
+                    text = stringResource(R.string.tools_update_tip_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = accent
+                )
+                Text(
+                    text = stringResource(R.string.tools_cnip_ipset_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.textPrimary
+                )
             }
         }
     }

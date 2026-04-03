@@ -89,7 +89,6 @@ fun QuickActionCard(
 
     val glowLargeAlpha = if (isDark) 0.22f else 0.16f
     val glowSmallAlpha = if (isDark) 0.18f else 0.12f
-
     Card(
         modifier = if (onClick != null) {
             modifier.clickable(
@@ -101,7 +100,7 @@ fun QuickActionCard(
         },
         shape = RoundedRectangle(18.dp),
         colors = CardDefaults.cardColors(containerColor = container),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
             modifier = Modifier
@@ -184,3 +183,4 @@ fun QuickActionCard(
         }
     }
 }
+

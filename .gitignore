@@ -1,0 +1,41 @@
+# Android / Gradle
+.gradle/
+.gradle-user/
+.gradle-user-home/
+.android-user/
+.android-user-home/
+.kotlin/
+build/
+**/build/
+local.properties
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Android Studio / NDK
+.externalNativeBuild/
+.cxx/
+captures/
+
+# Logs
+*.log
+*.hprof
+
+# Android artifacts
+*.apk
+*.aab
+*.ap_
+output.json
+
+# Signing / secrets
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key

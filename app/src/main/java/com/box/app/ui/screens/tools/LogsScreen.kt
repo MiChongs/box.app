@@ -344,7 +344,7 @@ fun ToolsLogsScreen(
                             bottomEnd = 0.dp
                         ),
                         colors = CardDefaults.cardColors(containerColor = c.card),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -376,7 +376,7 @@ fun ToolsLogsScreen(
                             .background(if (isDark) c.textSecondary.copy(alpha = 0.28f) else c.divider)
                     )
 
-                    // 内容卡片（紧贴上面的卡片）
+                    // 内容卡片（紧贴上面的卡片�?
                     if (loading) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -387,7 +387,7 @@ fun ToolsLogsScreen(
                                 bottomEnd = 18.dp
                             ),
                             colors = CardDefaults.cardColors(containerColor = c.card),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -419,7 +419,7 @@ fun ToolsLogsScreen(
                                 bottomEnd = 18.dp
                             ),
                             colors = CardDefaults.cardColors(containerColor = c.card),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 // 日志内容显示区域

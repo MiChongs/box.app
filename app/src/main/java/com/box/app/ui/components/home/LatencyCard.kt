@@ -42,7 +42,7 @@ fun LatencyWideCard(
     val c = appColors()
     val container = c.card
     val isOk = { v: String ->
-        v.isNotBlank() && v != "-" && v != "N/A" && v != "..." && v != "â€¦"
+        v.isNotBlank() && v != "-" && v != "N/A" && v != "..." && v != "¡ª"
     }
     val okCount = listOf(baidu, cloudflare, google).count { isOk(it) }
 
@@ -70,7 +70,7 @@ fun LatencyWideCard(
             ),
         shape = RoundedRectangle(18.dp),
         colors = CardDefaults.cardColors(containerColor = container),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -105,7 +105,7 @@ private fun LatencyMini(label: String, value: String, modifier: Modifier = Modif
 
     fun parseLatencyMs(raw: String): Int? {
         val cleaned = raw.trim().lowercase()
-        if (cleaned.isBlank() || cleaned == "-" || cleaned == "n/a" || cleaned == "..." || cleaned == "â€¦") return null
+        if (cleaned.isBlank() || cleaned == "-" || cleaned == "n/a" || cleaned == "..." || cleaned == "¡ª") return null
         return cleaned.replace("ms", "").trim().toIntOrNull()
     }
 
@@ -127,3 +127,4 @@ private fun LatencyMini(label: String, value: String, modifier: Modifier = Modif
         Text(text = value, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = valueColor)
     }
 }
+

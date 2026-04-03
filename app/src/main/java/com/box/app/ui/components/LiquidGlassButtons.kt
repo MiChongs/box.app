@@ -1,7 +1,7 @@
 package com.box.app.ui.components
 
-import android.os.Build
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -53,12 +53,24 @@ fun LiquidGlassButton(
     val translucent by ThemeManager.liquidGlassTranslucent.collectAsState()
     val blurDp by ThemeManager.liquidGlassBlurDp.collectAsState()
     val lensStrength by ThemeManager.liquidGlassLensStrength.collectAsState()
+    val blurEffectsEnabled = ThemeManager.shouldUseBlurEffects()
     val pillShape = Capsule()
-    val supportsLiquidGlass = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && backdrop != null
+    val supportsLiquidGlass = blurEffectsEnabled && backdrop != null
+    val minSurfaceAlpha = if (isDark) 0.78f else 0.86f
+    val normalizedSurfaceColor = if (surfaceColor.isSpecified && surfaceColor.alpha < minSurfaceAlpha) {
+        surfaceColor.copy(alpha = minSurfaceAlpha)
+    } else {
+        surfaceColor
+    }
+    val borderColor = if (isDark) {
+        Color.White.copy(alpha = 0.14f)
+    } else {
+        Color.Black.copy(alpha = 0.07f)
+    }
     val fallbackSurfaceColor = when {
-        surfaceColor.isSpecified -> surfaceColor
-        tint.isSpecified -> tint.copy(alpha = 0.92f)
-        else -> c.card
+        normalizedSurfaceColor.isSpecified -> normalizedSurfaceColor
+        tint.isSpecified -> tint.copy(alpha = 1f)
+        else -> c.card.copy(alpha = if (isDark) 0.94f else 0.96f)
     }
     val surfaceModifier = if (supportsLiquidGlass) {
         Modifier.drawBackdrop(
@@ -77,12 +89,12 @@ fun LiquidGlassButton(
             onDrawSurface = {
                 if (tint.isSpecified) {
                     drawRect(tint, blendMode = BlendMode.Hue)
-                    drawRect(tint.copy(alpha = 0.75f))
+                    drawRect(tint.copy(alpha = 0.86f))
                 }
-                if (surfaceColor.isSpecified) {
-                    drawRect(surfaceColor)
+                if (normalizedSurfaceColor.isSpecified) {
+                    drawRect(normalizedSurfaceColor)
                 } else if (!tint.isSpecified) {
-                    drawRect(if (isDark) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.10f))
+                    drawRect(if (isDark) Color.Black.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.16f))
                 }
             }
         )
@@ -95,6 +107,13 @@ fun LiquidGlassButton(
     Row(
         modifier = modifier
             .then(surfaceModifier)
+            .then(
+                if (blurEffectsEnabled) {
+                    Modifier
+                } else {
+                    Modifier.border(1.dp, borderColor, pillShape)
+                }
+            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = if (enabled) null else LocalIndication.current,
@@ -121,12 +140,24 @@ fun LiquidGlassTextFieldPill(
     val translucent by ThemeManager.liquidGlassTranslucent.collectAsState()
     val blurDp by ThemeManager.liquidGlassBlurDp.collectAsState()
     val lensStrength by ThemeManager.liquidGlassLensStrength.collectAsState()
+    val blurEffectsEnabled = ThemeManager.shouldUseBlurEffects()
     val pillShape = Capsule()
-    val supportsLiquidGlass = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && backdrop != null
+    val supportsLiquidGlass = blurEffectsEnabled && backdrop != null
+    val minSurfaceAlpha = if (isDark) 0.48f else 0.56f
+    val normalizedSurfaceColor = if (surfaceColor.isSpecified && surfaceColor.alpha < minSurfaceAlpha) {
+        surfaceColor.copy(alpha = minSurfaceAlpha)
+    } else {
+        surfaceColor
+    }
+    val borderColor = if (isDark) {
+        Color.White.copy(alpha = 0.14f)
+    } else {
+        Color.Black.copy(alpha = 0.07f)
+    }
     val fallbackSurfaceColor = when {
-        surfaceColor.isSpecified -> surfaceColor
-        tint.isSpecified -> tint.copy(alpha = 0.92f)
-        else -> c.card
+        normalizedSurfaceColor.isSpecified -> normalizedSurfaceColor
+        tint.isSpecified -> tint.copy(alpha = 1f)
+        else -> c.card.copy(alpha = if (isDark) 0.94f else 0.96f)
     }
     val surfaceModifier = if (supportsLiquidGlass) {
         Modifier.drawBackdrop(
@@ -145,12 +176,12 @@ fun LiquidGlassTextFieldPill(
             onDrawSurface = {
                 if (tint.isSpecified) {
                     drawRect(tint, blendMode = BlendMode.Hue)
-                    drawRect(tint.copy(alpha = 0.75f))
+                    drawRect(tint.copy(alpha = 0.86f))
                 }
-                if (surfaceColor.isSpecified) {
-                    drawRect(surfaceColor)
+                if (normalizedSurfaceColor.isSpecified) {
+                    drawRect(normalizedSurfaceColor)
                 } else if (!tint.isSpecified) {
-                    drawRect(if (isDark) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.10f))
+                    drawRect(if (isDark) Color.Black.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.16f))
                 }
             }
         )
@@ -162,6 +193,13 @@ fun LiquidGlassTextFieldPill(
         modifier = modifier
             .clip(pillShape)
             .then(surfaceModifier)
+            .then(
+                if (blurEffectsEnabled) {
+                    Modifier
+                } else {
+                    Modifier.border(1.dp, borderColor, pillShape)
+                }
+            )
     ) {
         content()
     }
