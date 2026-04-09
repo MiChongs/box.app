@@ -28,4 +28,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "BoxReApp"
 include(":app")
-include(":libs:hyperx-compose")
