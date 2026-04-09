@@ -239,7 +239,7 @@ tasks.named("preBuild") {
 }
 
 dependencies {
-    implementation("com.github.MiChongs:hyperx-compose:b92cfc6")
+    implementation("com.github.MiChongs:hyperx-compose:v0.1.0")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
