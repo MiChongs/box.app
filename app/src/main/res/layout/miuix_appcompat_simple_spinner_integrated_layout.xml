@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Widget.DropdownSelector.Spinner.Integrated"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center|end"
+    android:orientation="horizontal">
+
+    <TextView
+        android:id="@android:id/text1"
+        style="@style/TextAppearance.Spinner.Integrated"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.0"
+        android:gravity="end"
+        android:maxWidth="@dimen/miuix_appcompat_spinner_text_max_width_integrated"
+        android:scrollbars="none"
+        android:textDirection="locale" />
+
+    <ImageView
+        android:id="@android:id/icon1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center|end"
+        android:layout_marginStart="@dimen/miuix_appcompat_spinner_icon_padding_integrated"
+        android:src="@drawable/miuix_appcompat_arrow_up_down_integrated" />
+</LinearLayout>

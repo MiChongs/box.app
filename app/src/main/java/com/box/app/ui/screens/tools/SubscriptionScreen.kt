@@ -1,159 +1,138 @@
 package com.box.app.ui.screens.tools
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.Icon
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import com.kyant.shapes.RoundedRectangle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.launch
-import com.box.app.data.backend.BoxApi
 import com.box.app.BuildConfig
+import com.box.app.R
+import com.box.app.data.backend.BoxApi
 import com.box.app.ui.components.ErrorToast
-import com.box.app.ui.components.LiquidGlassButton
-import com.box.app.ui.components.LiquidGlassIconButton
-import com.box.app.ui.components.LocalLiquidBackdrop
-import com.box.app.ui.components.SettingsToggleRow
-import com.box.app.ui.components.ToolsSectionCard
+import com.box.app.ui.components.LocalFloatingNavBarSpaceDp
+import com.box.app.ui.components.LocalSystemNavBarInsetDp
 import com.box.app.ui.components.contentPaddingWithNavBars
+import com.box.app.ui.miuix.HyperBottomSheet
+import com.box.app.ui.miuix.HyperButton
 import com.box.app.ui.miuix.HyperIconButton
 import com.box.app.ui.miuix.HyperTextField
-import com.box.app.ui.theme.appColors
-import com.box.app.utils.ThemeManager
-import com.box.app.R
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.box.app.ui.miuix.HyperTextButton
+import dev.lackluster.hyperx.ui.component.ImageIcon
+import dev.lackluster.hyperx.ui.preference.EditTextPreference
+import dev.lackluster.hyperx.ui.preference.TextPreference
+import dev.lackluster.hyperx.ui.preference.ValuePosition
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun SubscriptionScreen(
     onNavVisibilityChange: (Boolean) -> Unit,
     onBack: () -> Unit
 ) {
-    val c = appColors()
     val context = LocalContext.current
-    val pagePadding = 16.dp
-    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    val scrollBehavior = MiuixScrollBehavior()
 
-    val liquidBackdrop = rememberLayerBackdrop()
+    // ── 状态 ──
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
 
-    var topBarHeightPx by rememberSaveable { mutableStateOf(0) }
-    var lastNonZeroTopBarHeightPx by rememberSaveable { mutableStateOf(0) }
-    val density = LocalDensity.current
-    val effectiveTopBarHeightPx = if (topBarHeightPx > 0) topBarHeightPx else lastNonZeroTopBarHeightPx
-    val topInset = with(density) { effectiveTopBarHeightPx.toDp() } + 16.dp
+    // 布尔设置（auto-save）
+    var renew by remember { mutableStateOf(false) }
+    var updateSubscription by remember { mutableStateOf(false) }
+    var runCrontab by remember { mutableStateOf(false) }
 
-    LaunchedEffect(listState) {
-        var last = listState.firstVisibleItemIndex * 10_000 + listState.firstVisibleItemScrollOffset
-        snapshotFlow { listState.firstVisibleItemIndex * 10_000 + listState.firstVisibleItemScrollOffset }
-            .distinctUntilChanged()
-            .collect { now ->
-                if (now > last) onNavVisibilityChange(false) else if (now < last) onNavVisibilityChange(true)
-                last = now
-            }
-    }
+    // 非布尔设置（FAB save）
+    var intervaUpdate by remember { mutableStateOf("") }
+    var singboxUrl by remember { mutableStateOf("") }
+    var mihomoProvidePath by remember { mutableStateOf("") }
+    var mihomoUrls by remember { mutableStateOf(listOf<String>()) }
+    var mihomoConfigs by remember { mutableStateOf(listOf<String>()) }
 
-    var renew by rememberSaveable { mutableStateOf(false) }
-    var updateSubscription by rememberSaveable { mutableStateOf(false) }
-    var runCrontab by rememberSaveable { mutableStateOf(false) }
-
-    var intervaUpdate by rememberSaveable { mutableStateOf("") }
-    var singboxUrl by rememberSaveable { mutableStateOf("") }
-    var mihomoProvidePath by rememberSaveable { mutableStateOf("") }
-
-    var mihomoUrls by rememberSaveable {
-        mutableStateOf(listOf(""))
-    }
-    var mihomoConfigs by rememberSaveable {
-        mutableStateOf(listOf(""))
-    }
-
-    var initialRenew by rememberSaveable { mutableStateOf(false) }
-    var initialUpdateSubscription by rememberSaveable { mutableStateOf(false) }
-    var initialRunCrontab by rememberSaveable { mutableStateOf(false) }
-    var initialIntervaUpdate by rememberSaveable { mutableStateOf("") }
-    var initialSingboxUrl by rememberSaveable { mutableStateOf("") }
-    var initialMihomoProvidePath by rememberSaveable { mutableStateOf("") }
-    var initialMihomoUrls by rememberSaveable { mutableStateOf(listOf("")) }
-    var initialMihomoConfigs by rememberSaveable { mutableStateOf(listOf("")) }
+    // dirty tracking（仅非布尔）
+    var initialIntervaUpdate by remember { mutableStateOf("") }
+    var initialSingboxUrl by remember { mutableStateOf("") }
+    var initialMihomoProvidePath by remember { mutableStateOf("") }
+    var initialMihomoUrls by remember { mutableStateOf(listOf<String>()) }
+    var initialMihomoConfigs by remember { mutableStateOf(listOf<String>()) }
 
     val isDirty by remember {
         derivedStateOf {
             val urls = mihomoUrls.map { it.trim() }.filter { it.isNotEmpty() }
             val cfgs = mihomoConfigs.map { it.trim() }.filter { it.isNotEmpty() }
-            val initialUrls = initialMihomoUrls.map { it.trim() }.filter { it.isNotEmpty() }
-            val initialCfgs = initialMihomoConfigs.map { it.trim() }.filter { it.isNotEmpty() }
-
-            renew != initialRenew ||
-                updateSubscription != initialUpdateSubscription ||
-                runCrontab != initialRunCrontab ||
-                intervaUpdate.trim() != initialIntervaUpdate.trim() ||
+            val initUrls = initialMihomoUrls.map { it.trim() }.filter { it.isNotEmpty() }
+            val initCfgs = initialMihomoConfigs.map { it.trim() }.filter { it.isNotEmpty() }
+            intervaUpdate.trim() != initialIntervaUpdate.trim() ||
                 singboxUrl.trim() != initialSingboxUrl.trim() ||
                 mihomoProvidePath.trim() != initialMihomoProvidePath.trim() ||
-                urls != initialUrls ||
-                cfgs != initialCfgs
+                urls != initUrls ||
+                cfgs != initCfgs
         }
     }
 
-    var loading by remember { mutableStateOf(true) }
-    var saving by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    // BottomSheet 状态
+    var showUrlSheet by remember { mutableStateOf(false) }
+    var showConfigSheet by remember { mutableStateOf(false) }
 
+    // Flavor-aware keys
     val subscriptionUrlKey = remember {
         if (BuildConfig.FLAVOR == "bfr") "subscription_url_clash" else "subscription_url_mihomo"
     }
@@ -164,508 +143,488 @@ fun SubscriptionScreen(
         if (BuildConfig.FLAVOR == "bfr") "clash_provide_path" else "mihomo_provide_path"
     }
 
+    // ── 解析工具 ──
+    fun parseSetting(settings: String, key: String): String? {
+        val regex = Regex("^${key}=\"?(.*?)\"?$", setOf(RegexOption.MULTILINE))
+        return regex.find(settings)?.groupValues?.getOrNull(1)
+    }
+
+    // ── 写入辅助 ──
+    fun writeBool(key: String, value: Boolean) {
+        scope.launch { runCatching { BoxApi.updateBooleanSetting(key, value) } }
+    }
+
+    fun saveNonBooleans() {
+        scope.launch {
+            error = null
+            val urls = mihomoUrls.map { it.trim() }.filter { it.isNotEmpty() }
+            val cfgs = mihomoConfigs.map { it.trim() }.filter { it.isNotEmpty() }
+
+            val ok = listOf(
+                BoxApi.updateSetting("interva_update", intervaUpdate.trim()),
+                BoxApi.updateArraySetting(subscriptionUrlKey, urls),
+                BoxApi.updateArraySetting(provideConfigKey, cfgs),
+                BoxApi.updateSetting(providePathKey, mihomoProvidePath.trim()),
+                BoxApi.updateSetting("subscription_url_singbox", singboxUrl.trim())
+            ).all { it }
+
+            if (ok) {
+                initialIntervaUpdate = intervaUpdate
+                initialSingboxUrl = singboxUrl
+                initialMihomoProvidePath = mihomoProvidePath
+                initialMihomoUrls = mihomoUrls
+                initialMihomoConfigs = mihomoConfigs
+            } else {
+                error = context.getString(R.string.tools_subscription_save_failed)
+            }
+        }
+    }
+
+    // ── 错误提示 ──
     ErrorToast(
         message = error,
         onConsumed = { error = null }
     )
 
+    // ── 加载设置 ──
     LaunchedEffect(Unit) {
         loading = true
         error = null
-        val settings = BoxApi.getSettings()
-        if (settings.isBlank()) {
-            error = context.getString(R.string.tools_subscription_load_failed)
-            loading = false
-            return@LaunchedEffect
-        }
+        val settings = runCatching { BoxApi.getSettings() }.getOrNull().orEmpty()
+        if (settings.isNotBlank()) {
+            renew = parseSetting(settings, "renew")?.toBooleanStrictOrNull() ?: false
+            updateSubscription = parseSetting(settings, "update_subscription")?.toBooleanStrictOrNull() ?: false
+            runCrontab = parseSetting(settings, "run_crontab")?.toBooleanStrictOrNull() ?: false
+            intervaUpdate = parseSetting(settings, "interva_update") ?: ""
 
-        val lines = settings.lineSequence().map { it.trim() }
-        for (line in lines) {
-            when {
-                line.startsWith("renew=") -> {
-                    renew = line.substringAfter("=").trim().replace("\"", "").lowercase() == "true"
-                }
-                line.startsWith("update_subscription=") -> {
-                    updateSubscription = line.substringAfter("=").trim().replace("\"", "").lowercase() == "true"
-                }
-                line.startsWith("run_crontab=") -> {
-                    runCrontab = line.substringAfter("=").trim().replace("\"", "").lowercase() == "true"
-                }
-                line.startsWith("interva_update=") -> {
-                    intervaUpdate = line.substringAfter("=").trim().replace("\"", "").replace("'", "")
-                }
-                line.startsWith("${subscriptionUrlKey}=") -> {
-                    val raw = line.substringAfter("=").trim()
-                    val parsed = BoxApi.parseBashArray(raw)
-                    mihomoUrls = if (parsed.isEmpty()) listOf("") else parsed
-                }
-                line.startsWith("${provideConfigKey}=") -> {
-                    val raw = line.substringAfter("=").trim()
-                    val parsed = BoxApi.parseBashArray(raw)
-                    mihomoConfigs = if (parsed.isEmpty()) listOf("") else parsed
-                }
-                line.startsWith("${providePathKey}=") -> {
-                    mihomoProvidePath = line.substringAfter("=").trim().replace("\"", "").replace("'", "")
-                        .replace("\${box_dir}", "/data/adb/box")
-                }
-                line.startsWith("subscription_url_singbox=") -> {
-                    singboxUrl = line.substringAfter("=").trim().replace("\"", "").replace("'", "")
-                }
+            // Bash array 解析
+            val urlLine = settings.lineSequence().map { it.trim() }
+                .firstOrNull { it.startsWith("${subscriptionUrlKey}=") }
+            if (urlLine != null) {
+                val raw = urlLine.substringAfter("=").trim()
+                mihomoUrls = BoxApi.parseBashArray(raw).ifEmpty { emptyList() }
             }
+
+            val cfgLine = settings.lineSequence().map { it.trim() }
+                .firstOrNull { it.startsWith("${provideConfigKey}=") }
+            if (cfgLine != null) {
+                val raw = cfgLine.substringAfter("=").trim()
+                mihomoConfigs = BoxApi.parseBashArray(raw).ifEmpty { emptyList() }
+            }
+
+            mihomoProvidePath = (parseSetting(settings, providePathKey) ?: "")
+                .replace("\${box_dir}", "/data/adb/box")
+            singboxUrl = parseSetting(settings, "subscription_url_singbox") ?: ""
+
+            // 初始化 dirty tracking
+            initialIntervaUpdate = intervaUpdate
+            initialSingboxUrl = singboxUrl
+            initialMihomoProvidePath = mihomoProvidePath
+            initialMihomoUrls = mihomoUrls
+            initialMihomoConfigs = mihomoConfigs
+        } else {
+            error = context.getString(R.string.tools_subscription_load_failed)
         }
-
-        initialRenew = renew
-        initialUpdateSubscription = updateSubscription
-        initialRunCrontab = runCrontab
-        initialIntervaUpdate = intervaUpdate
-        initialSingboxUrl = singboxUrl
-        initialMihomoProvidePath = mihomoProvidePath
-        initialMihomoUrls = mihomoUrls
-        initialMihomoConfigs = mihomoConfigs
-
-        error = null
         loading = false
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            
-            .imePadding()
-    ) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .layerBackdrop(liquidBackdrop),
-            contentPadding = contentPaddingWithNavBars(
-                start = pagePadding,
-                end = pagePadding,
-                top = topInset
-            ),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            item {
-                ToolsSectionCard(
-                    title = stringResource(R.string.tools_subscription_section_general_title),
-                    subtitle = stringResource(R.string.tools_subscription_section_general_subtitle)
-                ) {
-                    SettingsToggleRow(
-                        icon = Icons.Filled.Autorenew,
-                        title = stringResource(R.string.tools_subscription_renew_title),
-                        subtitle = stringResource(R.string.tools_subscription_renew_subtitle),
-                        checked = renew,
-                        onCheckedChange = { renew = it }
-                    )
-                    SettingsToggleRow(
-                        icon = Icons.Filled.Subscriptions,
-                        title = stringResource(R.string.tools_subscription_update_subscription_title),
-                        subtitle = stringResource(R.string.tools_subscription_update_subscription_subtitle),
-                        checked = updateSubscription,
-                        onCheckedChange = { updateSubscription = it }
-                    )
-                    SettingsToggleRow(
-                        icon = Icons.Filled.Schedule,
-                        title = stringResource(R.string.tools_subscription_run_crontab_title),
-                        subtitle = stringResource(R.string.tools_subscription_run_crontab_subtitle),
-                        checked = runCrontab,
-                        onCheckedChange = { runCrontab = it }
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LabeledTextField(
-                        icon = Icons.Filled.Tune,
-                        title = stringResource(R.string.tools_subscription_interval_title),
-                        subtitle = stringResource(R.string.tools_subscription_key_interva_update_subtitle),
-                        value = intervaUpdate,
-                        placeholder = stringResource(R.string.tools_subscription_interval_placeholder),
-                        onValueChange = { intervaUpdate = it }
-                    )
-                }
+    // ── 滚动隐藏导航栏 ──
+    LaunchedEffect(listState) {
+        var last = listState.firstVisibleItemIndex * 10_000 + listState.firstVisibleItemScrollOffset
+        snapshotFlow { listState.firstVisibleItemIndex * 10_000 + listState.firstVisibleItemScrollOffset }
+            .distinctUntilChanged()
+            .collect { now ->
+                if (now > last) onNavVisibilityChange(false)
+                else if (now < last) onNavVisibilityChange(true)
+                last = now
             }
+    }
 
-            item {
-                ToolsSectionCard(
-                    title = stringResource(R.string.tools_subscription_mihomo_urls_title),
-                    subtitle = stringResource(R.string.tools_subscription_key_subscription_url_mihomo_subtitle)
-                ) {
-                    EditableStringList(
-                        icon = Icons.Filled.Link,
-                        rows = mihomoUrls,
-                        hint = stringResource(R.string.tools_subscription_hint_enter_url),
-                        enabled = updateSubscription,
-                        onRowsChange = { mihomoUrls = it }
-                    )
-                }
-            }
-
-            item {
-                ToolsSectionCard(
-                    title = stringResource(R.string.tools_subscription_mihomo_configs_title),
-                    subtitle = stringResource(R.string.tools_subscription_key_name_provide_mihomo_config_subtitle)
-                ) {
-                    EditableStringList(
-                        icon = Icons.Filled.Description,
-                        rows = mihomoConfigs,
-                        hint = stringResource(R.string.tools_subscription_hint_enter_filename),
-                        enabled = updateSubscription,
-                        onRowsChange = { mihomoConfigs = it }
-                    )
-                }
-            }
-
-            item {
-                ToolsSectionCard(
-                    title = stringResource(R.string.tools_subscription_paths_title),
-                    subtitle = stringResource(R.string.tools_subscription_paths_subtitle)
-                ) {
-                    LabeledTextField(
-                        icon = Icons.Filled.Folder,
-                        title = stringResource(R.string.tools_subscription_mihomo_provide_path_title),
-                        subtitle = stringResource(R.string.tools_subscription_key_mihomo_provide_path_subtitle),
-                        value = mihomoProvidePath,
-                        placeholder = stringResource(R.string.tools_subscription_path_placeholder),
-                        enabled = updateSubscription,
-                        onValueChange = { mihomoProvidePath = it }
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    LabeledTextField(
-                        icon = Icons.Filled.Public,
-                        title = stringResource(R.string.tools_subscription_sing_box_url_title),
-                        subtitle = stringResource(R.string.tools_subscription_key_subscription_url_singbox_subtitle),
-                        value = singboxUrl,
-                        placeholder = stringResource(R.string.tools_subscription_url_placeholder),
-                        enabled = updateSubscription,
-                        onValueChange = { singboxUrl = it }
-                    )
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(8.dp)) }
-        }
-
-        CompositionLocalProvider(LocalLiquidBackdrop provides liquidBackdrop) {
-            SubscriptionFloatingTopBar(
-                saveEnabled = !loading && !saving && isDirty,
-                onBack = onBack,
-                onSave = {
-                    scope.launch {
-                        error = null
-                        saving = true
-                        val urls = mihomoUrls.map { it.trim() }.filter { it.isNotEmpty() }
-                        val cfgs = mihomoConfigs.map { it.trim() }.filter { it.isNotEmpty() }
-
-                        val r1 = BoxApi.updateBooleanSetting("renew", renew)
-                        val r2 = BoxApi.updateBooleanSetting("update_subscription", updateSubscription)
-                        val r3 = BoxApi.updateBooleanSetting("run_crontab", runCrontab)
-                        val r4 = BoxApi.updateSetting("interva_update", intervaUpdate.trim())
-                        val r5 = BoxApi.updateArraySetting(subscriptionUrlKey, urls)
-                        val r6 = BoxApi.updateArraySetting(provideConfigKey, cfgs)
-                        val r7 = BoxApi.updateSetting(providePathKey, mihomoProvidePath.trim())
-                        val r8 = BoxApi.updateSetting("subscription_url_singbox", singboxUrl.trim())
-
-                        val ok = listOf(r1, r2, r3, r4, r5, r6, r7, r8).all { it }
-                        if (ok) {
-                            initialRenew = renew
-                            initialUpdateSubscription = updateSubscription
-                            initialRunCrontab = runCrontab
-                            initialIntervaUpdate = intervaUpdate
-                            initialSingboxUrl = singboxUrl
-                            initialMihomoProvidePath = mihomoProvidePath
-                            initialMihomoUrls = mihomoUrls
-                            initialMihomoConfigs = mihomoConfigs
-                            error = null
-                        } else {
-                            error = context.getString(R.string.tools_subscription_save_failed)
-                        }
-                        saving = false
+    // ── 页面布局 ──
+    Scaffold(
+        topBar = {
+            SmallTopAppBar(
+                title = stringResource(R.string.tools_update_target_subscription),
+                subtitle = stringResource(R.string.tools_subscription_section_general_subtitle),
+                scrollBehavior = scrollBehavior,
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.onSurface
+                        )
                     }
-                },
+                }
+            )
+        }
+    ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                state = listState,
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .onGloballyPositioned {
-                        val h = it.size.height
-                        if (h > 0) {
-                            topBarHeightPx = h
-                            lastNonZeroTopBarHeightPx = h
+                    .fillMaxSize()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                contentPadding = contentPaddingWithNavBars(
+                    start = 12.dp, end = 12.dp,
+                    top = innerPadding.calculateTopPadding(),
+                    extraBottom = 12.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // ═══ General ═══
+                item(key = "section_general") {
+                    SmallTitle(text = stringResource(R.string.tools_subscription_section_general_title))
+                }
+                item(key = "card_general") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 18.dp
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            SwitchPreference(
+                                checked = renew,
+                                onCheckedChange = {
+                                    renew = it
+                                    writeBool("renew", it)
+                                },
+                                title = stringResource(R.string.tools_subscription_renew_title),
+                                summary = stringResource(R.string.tools_subscription_renew_subtitle)
+                            )
+                            SubscriptionDivider()
+                            SwitchPreference(
+                                checked = updateSubscription,
+                                onCheckedChange = {
+                                    updateSubscription = it
+                                    writeBool("update_subscription", it)
+                                },
+                                title = stringResource(R.string.tools_subscription_update_subscription_title),
+                                summary = stringResource(R.string.tools_subscription_update_subscription_subtitle)
+                            )
+                            SubscriptionDivider()
+                            SwitchPreference(
+                                checked = runCrontab,
+                                onCheckedChange = {
+                                    runCrontab = it
+                                    writeBool("run_crontab", it)
+                                },
+                                title = stringResource(R.string.tools_subscription_run_crontab_title),
+                                summary = stringResource(R.string.tools_subscription_run_crontab_subtitle)
+                            )
+                            SubscriptionDivider()
+                            EditTextPreference(
+                                title = stringResource(R.string.tools_subscription_interval_title),
+                                text = intervaUpdate,
+                                onTextChange = { intervaUpdate = it },
+                                icon = ImageIcon(Icons.Filled.Tune),
+                                summary = stringResource(R.string.tools_subscription_key_interva_update_subtitle),
+                                valuePosition = ValuePosition.Value,
+                                dialogTitle = stringResource(R.string.tools_subscription_interval_title),
+                                dialogHint = stringResource(R.string.tools_subscription_interval_placeholder)
+                            )
                         }
                     }
-            )
-        }
-    }
-}
-
-@Composable
-private fun SubscriptionFloatingTopBar(
-    saveEnabled: Boolean,
-    onBack: () -> Unit,
-    onSave: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val c = appColors()
-    val backdrop = requireNotNull(LocalLiquidBackdrop.current)
-    val isDark = ThemeManager.shouldUseDarkTheme()
-    val interactionSource = remember { MutableInteractionSource() }
-
-    val selectedTint = if (isDark) Color(0xFF2B2F37) else Color(0xFFE3E6EA)
-    val tint = selectedTint.copy(alpha = 0.25f)
-    val fallback = selectedTint.copy(alpha = 0.80f)
-
-    Column(
-        modifier = modifier
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(start = 20.dp, top = 8.dp, end = 20.dp)
-            .fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            LiquidGlassButton(
-                onClick = onBack,
-                backdrop = backdrop,
-                surfaceColor = tint
-            ) {
-                Text(
-                    text = stringResource(R.string.tools_update_back_compact),
-                    color = c.textPrimary,
-                    style = MiuixTheme.textStyles.button,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            LiquidGlassIconButton(
-                onClick = onSave,
-                enabled = saveEnabled,
-                backdrop = backdrop,
-                surfaceColor = tint
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Save,
-                    contentDescription = stringResource(R.string.action_save),
-                    tint = if (saveEnabled) c.textPrimary else c.textSecondary,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun LabeledTextField(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    subtitle: String,
-    value: String,
-    placeholder: String,
-    enabled: Boolean = true,
-    onValueChange: (String) -> Unit
-) {
-    val c = appColors()
-    val contentAlpha = if (enabled) 1f else 0.45f
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .alpha(contentAlpha)
-            .padding(horizontal = 6.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .background(c.cardAlt, shape = RoundedRectangle(10.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = c.textPrimary,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-
-        Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-            Text(
-                text = title,
-                style = MiuixTheme.textStyles.body1,
-                fontWeight = FontWeight.SemiBold,
-                color = c.textPrimary
-            )
-            Text(
-                text = subtitle,
-                style = MiuixTheme.textStyles.footnote1,
-                color = c.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-
-    HyperTextField(
-        value = value,
-        onValueChange = onValueChange,
-        enabled = enabled,
-        label = placeholder,
-        modifier = Modifier
-            .fillMaxWidth()
-            .alpha(contentAlpha)
-            .padding(horizontal = 6.dp),
-        singleLine = true,
-        textStyle = MiuixTheme.textStyles.body2.copy(color = c.textPrimary),
-        readOnly = false
-    )
-}
-
-@Composable
-private fun EditableStringList(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    rows: List<String>,
-    hint: String,
-    enabled: Boolean = true,
-    onRowsChange: (List<String>) -> Unit
-) {
-    val c = appColors()
-    val contentAlpha = if (enabled) 1f else 0.45f
-
-    val safeRows = if (rows.isEmpty()) listOf("") else rows
-
-    safeRows.forEachIndexed { idx, row ->
-        val isLast = idx == safeRows.lastIndex
-        EditableStringRow(
-            icon = icon,
-            value = row,
-            hint = hint,
-            showDivider = !isLast,
-            enabled = enabled,
-            onValueChange = { v ->
-                val next = safeRows.toMutableList()
-                next[idx] = v
-                onRowsChange(next)
-            },
-            onDelete = {
-                val next = safeRows.toMutableList()
-                if (next.size <= 1) {
-                    next[0] = ""
-                } else {
-                    next.removeAt(idx)
                 }
-                onRowsChange(next)
-            }
-        )
-    }
 
-    val interactionSource = remember { MutableInteractionSource() }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .alpha(contentAlpha)
-            .clickable(
-                enabled = enabled,
-                interactionSource = interactionSource,
-                indication = null
+                // ═══ Mihomo URLs ═══
+                item(key = "section_urls") {
+                    SmallTitle(text = stringResource(R.string.tools_subscription_mihomo_urls_title))
+                }
+                item(key = "card_urls") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 18.dp
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            val displayUrls = mihomoUrls.filter { it.isNotBlank() }
+                            if (displayUrls.isEmpty()) {
+                                TextPreference(
+                                    title = stringResource(R.string.tools_subscription_hint_enter_url),
+                                    summary = stringResource(R.string.tools_subscription_key_subscription_url_mihomo_subtitle),
+                                    icon = ImageIcon(Icons.Filled.Link),
+                                    onClick = { showUrlSheet = true },
+                                    enabled = updateSubscription
+                                )
+                            } else {
+                                displayUrls.forEachIndexed { idx, url ->
+                                    if (idx > 0) SubscriptionDivider()
+                                    TextPreference(
+                                        title = url,
+                                        icon = ImageIcon(Icons.Filled.Link),
+                                        onClick = { showUrlSheet = true },
+                                        enabled = updateSubscription
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ═══ Mihomo Configs ═══
+                item(key = "section_configs") {
+                    SmallTitle(text = stringResource(R.string.tools_subscription_mihomo_configs_title))
+                }
+                item(key = "card_configs") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 18.dp
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            val displayConfigs = mihomoConfigs.filter { it.isNotBlank() }
+                            if (displayConfigs.isEmpty()) {
+                                TextPreference(
+                                    title = stringResource(R.string.tools_subscription_hint_enter_filename),
+                                    summary = stringResource(R.string.tools_subscription_key_name_provide_mihomo_config_subtitle),
+                                    icon = ImageIcon(Icons.Filled.Description),
+                                    onClick = { showConfigSheet = true },
+                                    enabled = updateSubscription
+                                )
+                            } else {
+                                displayConfigs.forEachIndexed { idx, cfg ->
+                                    if (idx > 0) SubscriptionDivider()
+                                    TextPreference(
+                                        title = cfg,
+                                        icon = ImageIcon(Icons.Filled.Description),
+                                        onClick = { showConfigSheet = true },
+                                        enabled = updateSubscription
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ═══ Paths ═══
+                item(key = "section_paths") {
+                    SmallTitle(text = stringResource(R.string.tools_subscription_paths_title))
+                }
+                item(key = "card_paths") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 18.dp
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            EditTextPreference(
+                                title = stringResource(R.string.tools_subscription_mihomo_provide_path_title),
+                                text = mihomoProvidePath,
+                                onTextChange = { mihomoProvidePath = it },
+                                icon = ImageIcon(Icons.Filled.Folder),
+                                summary = stringResource(R.string.tools_subscription_key_mihomo_provide_path_subtitle),
+                                valuePosition = ValuePosition.Summary,
+                                dialogTitle = stringResource(R.string.tools_subscription_mihomo_provide_path_title),
+                                dialogHint = stringResource(R.string.tools_subscription_path_placeholder),
+                                enabled = updateSubscription
+                            )
+                            SubscriptionDivider()
+                            EditTextPreference(
+                                title = stringResource(R.string.tools_subscription_sing_box_url_title),
+                                text = singboxUrl,
+                                onTextChange = { singboxUrl = it },
+                                icon = ImageIcon(Icons.Filled.Public),
+                                summary = stringResource(R.string.tools_subscription_key_subscription_url_singbox_subtitle),
+                                valuePosition = ValuePosition.Summary,
+                                dialogTitle = stringResource(R.string.tools_subscription_sing_box_url_title),
+                                dialogHint = stringResource(R.string.tools_subscription_url_placeholder),
+                                enabled = updateSubscription
+                            )
+                        }
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(8.dp)) }
+            }
+
+            // ── FAB 保存按钮 ──
+            val fabBottomPadding = LocalFloatingNavBarSpaceDp.current +
+                LocalSystemNavBarInsetDp.current + 16.dp
+
+            AnimatedVisibility(
+                visible = isDirty,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = fabBottomPadding),
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
             ) {
-                onRowsChange(safeRows + "")
+                HyperButton(
+                    onClick = { saveNonBooleans() },
+                    prominent = true
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Save,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.action_save))
+                }
             }
-            .padding(horizontal = 6.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .background(c.cardAlt, shape = RoundedRectangle(10.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = null,
-                tint = c.textPrimary,
-                modifier = Modifier.size(18.dp)
-            )
-        }
 
-        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(
-                text = stringResource(R.string.action_add),
-                style = MiuixTheme.textStyles.body1,
-                fontWeight = FontWeight.SemiBold,
-                color = c.textPrimary
-            )
-            Text(
-                text = stringResource(R.string.tools_subscription_append_item),
-                style = MiuixTheme.textStyles.footnote1,
-                color = c.textSecondary
-            )
+            // ── URL 编辑底部弹窗 ──
+            if (showUrlSheet) {
+                UrlListEditSheet(
+                    urls = mihomoUrls,
+                    onUrlsChange = { mihomoUrls = it },
+                    onDismiss = { showUrlSheet = false }
+                )
+            }
+
+            // ── Config 编辑底部弹窗 ──
+            if (showConfigSheet) {
+                ConfigListEditSheet(
+                    configs = mihomoConfigs,
+                    onConfigsChange = { mihomoConfigs = it },
+                    onDismiss = { showConfigSheet = false }
+                )
+            }
+
+            // ── 加载遮罩 ──
+            if (loading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                }
+            }
         }
     }
 }
 
-@Composable
-private fun EditableStringRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    value: String,
-    hint: String,
-    showDivider: Boolean,
-    enabled: Boolean = true,
-    onValueChange: (String) -> Unit,
-    onDelete: () -> Unit
-) {
-    val c = appColors()
-    val contentAlpha = if (enabled) 1f else 0.45f
+// ─── URL 列表编辑底部弹窗 ─────────────────────────────────────────────────
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .alpha(contentAlpha)
-            .padding(horizontal = 6.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .background(c.cardAlt, shape = RoundedRectangle(10.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = c.textPrimary,
-                modifier = Modifier.size(18.dp)
+@Composable
+private fun UrlListEditSheet(
+    urls: List<String>,
+    onUrlsChange: (List<String>) -> Unit,
+    onDismiss: () -> Unit
+) {
+    HyperBottomSheet(
+        show = true,
+        onDismissRequest = onDismiss,
+        title = stringResource(R.string.tools_subscription_mihomo_urls_title),
+        endAction = {
+            HyperTextButton(
+                text = stringResource(R.string.action_add),
+                onClick = { onUrlsChange(urls + "") },
+                prominent = true
             )
         }
-
-        HyperTextField(
-            value = value,
-            onValueChange = onValueChange,
-            enabled = enabled,
-            label = hint,
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 12.dp),
-            singleLine = true,
-            textStyle = MiuixTheme.textStyles.body2.copy(color = c.textPrimary),
-            readOnly = false
-        )
-
-        HyperIconButton(
-            onClick = onDelete,
-            icon = Icons.Filled.Delete,
-            modifier = Modifier.padding(start = 10.dp),
-            enabled = enabled,
-            tint = if (enabled) c.textSecondary else c.textSecondary.copy(alpha = 0.6f)
-        )
-    }
-
-    if (showDivider) {
-        Box(
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 52.dp)
-                .height(1.dp)
-                .background(c.divider)
-        )
+                .verticalScroll(rememberScrollState())
+                .imePadding(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val safeUrls = urls.ifEmpty { listOf("") }
+            safeUrls.forEachIndexed { idx, url ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    HyperTextField(
+                        value = url,
+                        onValueChange = { v ->
+                            onUrlsChange(safeUrls.toMutableList().also { it[idx] = v })
+                        },
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.tools_subscription_hint_enter_url),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Uri,
+                            imeAction = ImeAction.Done
+                        )
+                    )
+                    HyperIconButton(
+                        onClick = {
+                            val next = safeUrls.toMutableList()
+                            if (next.size <= 1) next[0] = "" else next.removeAt(idx)
+                            onUrlsChange(next)
+                        },
+                        icon = Icons.Filled.Delete,
+                        modifier = Modifier.padding(start = 8.dp),
+                        tint = MiuixTheme.colorScheme.onSurfaceSecondary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
     }
+}
+
+// ─── Config 列表编辑底部弹窗 ───────────────────────────────────────────────
+
+@Composable
+private fun ConfigListEditSheet(
+    configs: List<String>,
+    onConfigsChange: (List<String>) -> Unit,
+    onDismiss: () -> Unit
+) {
+    HyperBottomSheet(
+        show = true,
+        onDismissRequest = onDismiss,
+        title = stringResource(R.string.tools_subscription_mihomo_configs_title),
+        endAction = {
+            HyperTextButton(
+                text = stringResource(R.string.action_add),
+                onClick = { onConfigsChange(configs + "") },
+                prominent = true
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .imePadding(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val safeConfigs = configs.ifEmpty { listOf("") }
+            safeConfigs.forEachIndexed { idx, cfg ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    HyperTextField(
+                        value = cfg,
+                        onValueChange = { v ->
+                            onConfigsChange(safeConfigs.toMutableList().also { it[idx] = v })
+                        },
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.tools_subscription_hint_enter_filename),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text,
+                            imeAction = ImeAction.Done
+                        )
+                    )
+                    HyperIconButton(
+                        onClick = {
+                            val next = safeConfigs.toMutableList()
+                            if (next.size <= 1) next[0] = "" else next.removeAt(idx)
+                            onConfigsChange(next)
+                        },
+                        icon = Icons.Filled.Delete,
+                        modifier = Modifier.padding(start = 8.dp),
+                        tint = MiuixTheme.colorScheme.onSurfaceSecondary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
+
+// ─── 分隔线 ─────────────────────────────────────────────────────────────────
+
+@Composable
+private fun SubscriptionDivider() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .height(0.5.dp)
+            .background(MiuixTheme.colorScheme.dividerLine.copy(alpha = 0.08f))
+    )
 }

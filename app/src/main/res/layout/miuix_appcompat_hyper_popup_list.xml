@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<fan.smooth.SmoothFrameLayout2 xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/Widget.PopupWindow.DayNight"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layoutDirection="locale"
+    android:radius="@dimen/miuix_appcompat_drop_down_menu_radius">
+
+    <fan.springback.view.SpringBackLayout
+        android:id="@+id/spring_back"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:scrollOrientation="vertical"
+        app:scrollableView="@android:id/list">
+
+        <ListView
+            android:id="@android:id/list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:overScrollMode="ifContentScrolls"
+            android:scrollbarDefaultDelayBeforeFade="100"
+            android:scrollbarFadeDuration="100" />
+    </fan.springback.view.SpringBackLayout>
+
+    <FrameLayout
+        android:id="@+id/mask"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.0"
+        android:background="?hyperMenuMask"
+        android:clickable="true"
+        android:importantForAccessibility="no"
+        android:visibility="gone" />
+</fan.smooth.SmoothFrameLayout2>

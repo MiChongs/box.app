@@ -39,3 +39,19 @@ output.json
 *.p12
 *.pem
 *.key
+
+# Excluded reference repositories (per request)
+KernelSU-main/
+HyperCeiler-main/
+
+# Claude / Codex / planning tool state
+.claude/
+.codex
+.spec-workflow/
+.tmp/
+
+# Local data and packaged outputs
+data/
+boxapp.zip
+deps.txt
+sonobat.db

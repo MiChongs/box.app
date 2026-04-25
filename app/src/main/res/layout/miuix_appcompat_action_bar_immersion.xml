@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center_vertical">
+
+    <Button
+        android:id="@+id/more"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/miuix_appcompat_action_mode_immersion_more_margin_right"
+        android:background="?attr/immersionButtonMoreBackground"
+        android:contentDescription="@string/miuix_appcompat_actionbar_immersion_button_more_description" />
+</FrameLayout>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<fan.appcompat.app.GroupButtonsPanel xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/group_buttons_root_layout"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_gravity="bottom"
+    android:background="?attr/groupButtonsPanelBackground"
+    android:gravity="center_horizontal"
+    android:paddingHorizontal="@dimen/miuix_appcompat_group_buttons_panel_padding_horizontal"
+    android:paddingVertical="@dimen/miuix_appcompat_group_buttons_panel_padding_vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <fan.appcompat.widget.Button
+            android:id="@+id/group_primary_button"
+            style="?attr/groupButtonsPrimaryButtonStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/miuix_appcompat_group_buttons_margin_bottom" />
+
+        <fan.appcompat.widget.Button
+            android:id="@+id/group_secondary_button"
+            style="?attr/groupButtonsSecondaryButtonStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/miuix_appcompat_group_buttons_margin_bottom" />
+
+        <fan.appcompat.widget.Button
+            android:id="@+id/group_tertiary_button"
+            style="?attr/groupButtonsTertiaryButtonStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/miuix_appcompat_group_buttons_margin_bottom" />
+    </LinearLayout>
+</fan.appcompat.app.GroupButtonsPanel>

@@ -1,3 +1,4 @@
 <resources>
-    <style name="Theme.BoxReApp" parent="Theme.Material3.DayNight.NoActionBar" />
+    <style name="Theme.BoxReApp" parent="android:Theme.Material.NoActionBar" />
+    <style name="Theme.BoxReApp.Light" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

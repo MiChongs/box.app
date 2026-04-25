@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ This file is part of HyperCeiler.
+  ~
+  ~ HyperCeiler is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as
+  ~ published by the Free Software Foundation, either version 3 of the
+  ~ License.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  ~
+  ~ Copyright (C) 2023-2026 HyperCeiler Contributions
+  -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/provision_lyt_actionbar"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_marginTop="@dimen/provision_actionbar_margin_top"
+    android:minHeight="@dimen/provision_actionbar_height"
+    android:paddingHorizontal="@dimen/provision_actionbar_padding_horizontal"
+    android:paddingVertical="@dimen/provision_actionbar_padding_vertical">
+
+    <ImageView
+        android:id="@+id/back_icon"
+        android:layout_width="@dimen/provision_actionbar_icon_size"
+        android:layout_height="@dimen/provision_actionbar_icon_size"
+        android:contentDescription="@string/provision_back_description"
+        android:src="?android:homeAsUpIndicator" />
+</LinearLayout>

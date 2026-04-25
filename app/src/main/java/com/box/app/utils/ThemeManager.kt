@@ -6,7 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.appcompat.app.AppCompatDelegate
+import android.app.UiModeManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,7 +40,12 @@ object ThemeManager {
     private const val KEY_BLUR_EFFECTS_ENABLED = "blur_effects_enabled"
     private const val KEY_LIQUID_GLASS_NAV_BAR = "liquid_glass_nav_bar"
     private const val KEY_MAPLE_FONT_LOGS = "maple_font_logs"
+    private const val KEY_MAPLE_FONT_EDITOR = "maple_font_editor"
     private const val KEY_HYPERX_NAV_TRANSITIONS = "hyperx_nav_transitions"
+    private const val KEY_MONET_ENABLED = "monet_enabled"
+    private const val KEY_KEY_COLOR = "key_color"
+    private const val KEY_PALETTE_STYLE = "palette_style"
+    private const val KEY_COLOR_SPEC = "color_spec"
 
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
@@ -77,8 +82,23 @@ object ThemeManager {
     private val _mapleFontLogs = MutableStateFlow(false)
     val mapleFontLogs: StateFlow<Boolean> = _mapleFontLogs.asStateFlow()
 
+    private val _mapleFontEditor = MutableStateFlow(false)
+    val mapleFontEditor: StateFlow<Boolean> = _mapleFontEditor.asStateFlow()
+
     private val _hyperXNavTransitions = MutableStateFlow(false)
     val hyperXNavTransitions: StateFlow<Boolean> = _hyperXNavTransitions.asStateFlow()
+
+    private val _monetEnabled = MutableStateFlow(false)
+    val monetEnabled: StateFlow<Boolean> = _monetEnabled.asStateFlow()
+
+    private val _keyColor = MutableStateFlow(0)
+    val keyColor: StateFlow<Int> = _keyColor.asStateFlow()
+
+    private val _paletteStyle = MutableStateFlow("TonalSpot")
+    val paletteStyle: StateFlow<String> = _paletteStyle.asStateFlow()
+
+    private val _colorSpec = MutableStateFlow("Default")
+    val colorSpec: StateFlow<String> = _colorSpec.asStateFlow()
 
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -93,8 +113,13 @@ object ThemeManager {
         _blurEffectsEnabled.value = prefs.getBoolean(KEY_BLUR_EFFECTS_ENABLED, false) && supportsBlurEffects()
         _liquidGlassNavBar.value = prefs.getBoolean(KEY_LIQUID_GLASS_NAV_BAR, false) && supportsBlurEffects()
         _mapleFontLogs.value = prefs.getBoolean(KEY_MAPLE_FONT_LOGS, false)
+        _mapleFontEditor.value = prefs.getBoolean(KEY_MAPLE_FONT_EDITOR, false)
         _hyperXNavTransitions.value = prefs.getBoolean(KEY_HYPERX_NAV_TRANSITIONS, false)
-        if (_mapleFontLogs.value) {
+        _monetEnabled.value = prefs.getBoolean(KEY_MONET_ENABLED, false)
+        _keyColor.value = prefs.getInt(KEY_KEY_COLOR, 0)
+        _paletteStyle.value = prefs.getString(KEY_PALETTE_STYLE, "TonalSpot") ?: "TonalSpot"
+        _colorSpec.value = prefs.getString(KEY_COLOR_SPEC, "Default") ?: "Default"
+        if (_mapleFontLogs.value || _mapleFontEditor.value) {
             MapleFontManager.loadCachedFont(context)
         }
         if (!supportsBlurEffects() && prefs.contains(KEY_BLUR_EFFECTS_ENABLED)) {
@@ -181,10 +206,40 @@ object ThemeManager {
         // 关闭时仅切换状态，保留缓存文件，避免重复下载
     }
 
+    fun setMapleFontEditor(context: Context, enabled: Boolean) {
+        _mapleFontEditor.value = enabled
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_MAPLE_FONT_EDITOR, enabled).apply()
+    }
+
     fun setHyperXNavTransitions(context: Context, enabled: Boolean) {
         _hyperXNavTransitions.value = enabled
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_HYPERX_NAV_TRANSITIONS, enabled).apply()
+    }
+
+    fun setMonetEnabled(context: Context, enabled: Boolean) {
+        _monetEnabled.value = enabled
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_MONET_ENABLED, enabled).apply()
+    }
+
+    fun setKeyColor(context: Context, color: Int) {
+        _keyColor.value = color
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_KEY_COLOR, color).apply()
+    }
+
+    fun setPaletteStyle(context: Context, style: String) {
+        _paletteStyle.value = style
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_PALETTE_STYLE, style).apply()
+    }
+
+    fun setColorSpec(context: Context, spec: String) {
+        _colorSpec.value = spec
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_COLOR_SPEC, spec).apply()
     }
 
     fun supportsBlurEffects(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
@@ -192,12 +247,7 @@ object ThemeManager {
     fun isBlurEffectsEnabled(): Boolean = supportsBlurEffects() && _blurEffectsEnabled.value
 
     private fun applyAppCompatNightMode(mode: ThemeMode) {
-        val nightMode = when (mode) {
-            ThemeMode.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
-            ThemeMode.DARK -> AppCompatDelegate.MODE_NIGHT_YES
-            ThemeMode.SYSTEM -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-        }
-        AppCompatDelegate.setDefaultNightMode(nightMode)
+        // Compose 项目通过 MiuixTheme controller 控制深浅色，此处无需 AppCompatDelegate
     }
 
     @Composable

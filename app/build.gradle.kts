@@ -111,6 +111,7 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        aidl = true
     }
 
     // R8 完整模式
@@ -238,13 +239,20 @@ tasks.named("preBuild") {
     dependsOn(prepareAboutLibrariesRes)
 }
 
+
+configurations.configureEach {
+    // fan.miuix:appcompat 替代了 androidx appcompat-resources，排除后者避免重复类
+    exclude(group = "androidx.appcompat", module = "appcompat-resources")
+}
+
 dependencies {
-    implementation("com.github.MiChongs:hyperx-compose:v0.1.4")
+    implementation(project(":libs:hyperx-compose"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.material)
+    // androidx.appcompat + material 由 fan.miuix:appcompat 替代
+    // implementation(libs.androidx.appcompat)
+    // implementation(libs.material)
 
     implementation(libs.okhttp)
     implementation(libs.libsu.core)
@@ -276,6 +284,20 @@ dependencies {
     implementation(libs.miuix.blur)
     implementation(libs.miuix.navigation3.ui)
 
+    implementation(libs.material.kolor)
+
+    // fan.miuix (MIUI provision animation framework)
+    implementation(libs.fan.miuix.folme)
+    implementation(libs.fan.miuix.animation)
+    implementation(libs.fan.miuix.core)
+    implementation(libs.fan.miuix.appcompat)
+    implementation(libs.fan.miuix.transition)
+    implementation(libs.fan.miuix.theme)
+    implementation(libs.fan.miuix.basewidget)
+    implementation(libs.fan.miuix.preference)
+    implementation(libs.fan.miuix.bottomsheet)
+    implementation(libs.fan.miuix.springback)
+
     implementation(libs.coil)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
@@ -295,3 +317,4 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
+

@@ -7,6 +7,17 @@
     @androidx.compose.runtime.Composable <methods>;
 }
 
+# ── fan.miuix（XML 布局/drawable/preference 大量反射引用，必须整体保留） ──
+-keep class fan.** { *; }
+-dontwarn com.android.internal.view.menu.**
+-dontwarn miui.util.**
+
+# ── AndroidX Preference（fan.preference 内部调用 getClass().getPackage().getName()，R8 full mode 需保留 package 元数据） ──
+-keep class androidx.preference.** { *; }
+
+# ── Provision OOBE ──
+-keep class com.box.app.provision.** { *; }
+
 # ── Miuix（仅保留公开 API，内部实现允许混淆） ──
 -keep class top.yukonga.miuix.kmp.basic.** { *; }
 -keep class top.yukonga.miuix.kmp.preference.** { *; }

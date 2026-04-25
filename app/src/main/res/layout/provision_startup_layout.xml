@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  ~ This file is part of HyperCeiler.
+  ~
+  ~ HyperCeiler is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as
+  ~ published by the Free Software Foundation, either version 3 of the
+  ~ License.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  ~
+  ~ Copyright (C) 2023-2026 HyperCeiler Contributions
+  -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <com.box.app.provision.renderengine.RenderViewLayout
+            android:id="@+id/render_view_layout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:importantForAccessibility="no" />
+
+        <ImageView
+            android:id="@+id/background_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/miui_enter_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:orientation="vertical">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="30.0">
+
+            <View
+                android:id="@+id/show_qr_view"
+                android:layout_width="@dimen/provision_qr_entrance_size"
+                android:layout_height="@dimen/provision_qr_entrance_size"
+                android:layout_alignParentEnd="true"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no" />
+        </RelativeLayout>
+
+        <ImageView
+            android:id="@+id/logo_image"
+            android:layout_width="90dp"
+            android:layout_height="90dp"
+            android:contentDescription="@null"
+            android:importantForAccessibility="no"
+            android:layout_gravity="center"/>
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="40">
+
+            <FrameLayout
+                android:id="@+id/logo_image_wrapper"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentTop="true"
+                android:layout_centerHorizontal="true">
+
+                <TextView
+                    android:id="@+id/text_logo_image"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:layout_gravity="center_horizontal"
+                    android:text="@string/app_name"
+                    android:textSize="48sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@android:color/white"
+                    android:includeFontPadding="false"
+                    android:letterSpacing="0.02"
+                    android:importantForAccessibility="no"
+                    android:layerType="hardware" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:id="@+id/next_layout"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentBottom="true"
+                android:layout_centerHorizontal="true"
+                android:padding="4.5dp">
+
+                <ImageButton
+                    android:id="@+id/next"
+                    android:layout_width="@dimen/provision_next_button_size"
+                    android:layout_height="@dimen/provision_next_button_size"
+                    android:clickable="false"
+                    android:contentDescription="@string/provision_start_content_description"
+                    android:importantForAccessibility="no" />
+
+                <ImageView
+                    android:id="@+id/next_arrow"
+                    android:layout_width="29dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="center"
+                    android:clickable="false"
+                    android:contentDescription="@string/provision_start_content_description"
+                    android:importantForAccessibility="no"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </RelativeLayout>
+
+        <Space
+            android:id="@+id/space_bottom"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="20" />
+
+    </LinearLayout>
+</FrameLayout>

@@ -1,0 +1,59 @@
+/*
+ * This file is part of HyperCeiler.
+
+ * HyperCeiler is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+ * Copyright (C) 2023-2026 HyperCeiler Contributions
+ */
+package com.box.app.provision.text.style;
+
+import android.text.TextPaint;
+import android.text.style.ClickableSpan;
+import android.util.Log;
+import android.view.View;
+
+import androidx.annotation.NonNull;
+import androidx.fragment.app.FragmentActivity;
+
+import com.box.app.provision.widget.TermsAndStatementBottomSheet;
+
+public class TermsTitleSpan extends ClickableSpan {
+
+    private final FragmentActivity mContext;
+    private final int mHiperlinkType;
+
+    public TermsTitleSpan(FragmentActivity context, int type) {
+        mContext = context;
+        mHiperlinkType = type;
+    }
+
+    @Override
+    public void updateDrawState(@NonNull TextPaint ds) {
+        ds.setUnderlineText(false);
+    }
+
+    @Override
+    public void onClick(@NonNull View widget) {
+        TermsAndStatementBottomSheet sheet = new TermsAndStatementBottomSheet(mContext);
+        Log.i("TermsAndStatementFragment", " here is TermsTitleSpan onClick ");
+        if (mHiperlinkType == 2) {
+            Log.i("TermsAndStatementFragment", " here is User Agreement click ");
+            TermsAndStatementBottomSheet.loadMarkdown("https://raw.githubusercontent.com/ReChronoRain/website/main/Protocol.md");
+        } else if (mHiperlinkType == 1) {
+            Log.i("TermsAndStatementFragment", " here is Privacy Policy click ");
+            TermsAndStatementBottomSheet.loadMarkdown("https://raw.githubusercontent.com/ReChronoRain/website/main/Privacy.md");
+        }
+        sheet.show();
+    }
+}

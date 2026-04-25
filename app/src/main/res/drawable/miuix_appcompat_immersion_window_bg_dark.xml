@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<fan.smooth.SmoothContainerDrawable2 xmlns:android="http://schemas.android.com/apk/res/android"
+    android:radius="@dimen/miuix_appcompat_immersion_menu_background_radius">
+    <child>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/miuix_appcompat_dropdown_popup_background_color_dark" />
+        </shape>
+    </child>
+</fan.smooth.SmoothContainerDrawable2>

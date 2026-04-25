@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/miuix_appcompat_default_button_text_color_disabled_dark" android:state_enabled="false" />
+    <item android:color="@color/miuix_appcompat_default_button_text_color_dark" android:state_pressed="true" />
+    <item android:color="@color/miuix_appcompat_default_button_text_color_dark" android:state_checked="true" />
+    <item android:color="@color/miuix_appcompat_default_button_text_color_dark" android:state_selected="true" />
+    <item android:color="@color/miuix_appcompat_default_button_text_color_dark" android:state_activated="true" />
+    <item android:color="@color/miuix_appcompat_default_button_text_color_dark" />
+</selector>

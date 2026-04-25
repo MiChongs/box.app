@@ -2,6 +2,9 @@ package com.box.app.ui.components.home
 
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -12,7 +15,6 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -29,6 +31,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,9 +68,17 @@ import com.box.app.ui.components.ErrorToast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.util.lerp
 import com.kyant.shapes.Capsule
 import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.shapes.SmoothRoundedCornerShape
@@ -77,6 +88,7 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
@@ -195,14 +207,11 @@ fun HomeHeroCard(
     var coreText by remember { mutableStateOf(serviceState.coreDisplayName) }
     var modeText by remember { mutableStateOf(serviceState.networkMode) }
     var ipv6Text by remember { mutableStateOf(serviceState.ipv6Text) }
-    var dnsMode by remember { mutableStateOf(serviceState.dnsMode) }
-
-    LaunchedEffect(serviceState.coreDisplayName, serviceState.networkMode, serviceState.ipv6Text, serviceState.dnsMode, isRunning) {
+    LaunchedEffect(serviceState.coreDisplayName, serviceState.networkMode, serviceState.ipv6Text, isRunning) {
         if (isRunning) {
             coreText = serviceState.coreDisplayName
             modeText = serviceState.networkMode
             ipv6Text = serviceState.ipv6Text
-            dnsMode = serviceState.dnsMode
         }
     }
 
@@ -557,190 +566,374 @@ fun HomeHeroCard(
         isBusy -> stringResource(R.string.home_please_wait)
         else -> stringResource(R.string.home_tap_start_to_enable)
     }
+    // ── 颜色动画（tween 固定时长，避免 spring 持续计算） ──
+    val colorTween = tween<Color>(durationMillis = 500, easing = FastOutSlowInEasing)
     val animatedStatusColor by animateColorAsState(
         targetValue = statusAccent,
-        animationSpec = tween(durationMillis = 360),
-        label = "home_hero_status"
+        animationSpec = colorTween,
+        label = "hero_accent"
+    )
+    val animatedContainerColor by animateColorAsState(
+        targetValue = statusColors.container,
+        animationSpec = colorTween,
+        label = "hero_bg"
+    )
+    val animatedOnContainerColor by animateColorAsState(
+        targetValue = statusColors.onContainer,
+        animationSpec = colorTween,
+        label = "hero_fg"
     )
 
-    Card(
+    // ── 状态标题行 ──
+    val heroTitle = statusText
+    val heroSubtitle = statusSummary
+    // 运行中时显示核心名称
+    val heroCoreLabel = if (isRunning) {
+        coreText.ifBlank { "-" }.replaceFirstChar { it.uppercase() }
+    } else null
+
+    // ── 状态图标 path morphing（无闪烁） ──
+    val targetIconState = when {
+        isRunning -> 0       // check
+        showUnavailable -> 1 // error
+        isBusy -> 2          // refresh
+        else -> 3            // pause
+    }
+    // morphFrom / morphTo 在动画开始前一次性锁定，动画期间不随 recomposition 变化
+    var morphFrom by remember { mutableIntStateOf(targetIconState) }
+    var morphTo by remember { mutableIntStateOf(targetIconState) }
+    val morphProgress = remember { Animatable(1f) }
+    LaunchedEffect(targetIconState) {
+        if (targetIconState != morphTo) {
+            // 在启动新动画前，将 from 设为当前视觉状态（上次动画的终点）
+            morphFrom = morphTo
+            morphTo = targetIconState
+            morphProgress.snapTo(0f)
+            morphProgress.animateTo(1f, tween(500, easing = FastOutSlowInEasing))
+        }
+    }
+    // busy 旋转：仅 busy 时驱动帧，退出时平滑归零（避免角度跳变）
+    val rotationAnim = remember { Animatable(0f) }
+    LaunchedEffect(isBusy) {
+        if (isBusy) {
+            while (true) {
+                rotationAnim.animateTo(
+                    targetValue = rotationAnim.value + 360f,
+                    animationSpec = tween(durationMillis = 1200, easing = LinearEasing)
+                )
+            }
+        } else {
+            // 平滑旋转到最近的 360° 整数倍（即原位），而不是瞬间归零
+            val current = rotationAnim.value % 360f
+            if (current > 1f) {
+                rotationAnim.animateTo(
+                    targetValue = rotationAnim.value + (360f - current),
+                    animationSpec = tween(durationMillis = ((360f - current) / 360f * 600f).toInt(), easing = FastOutSlowInEasing)
+                )
+            }
+            rotationAnim.snapTo(0f)
+        }
+    }
+
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 22.dp,
-        insideMargin = PaddingValues(0.dp),
-        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surfaceContainer)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Column(
+        // ── KernelSU 风格：左状态卡 + 右双信息卡 ──
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ── 左右双栏：左侧状态 | 右侧配置 ──
-            val innerHeight = 110.dp
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            // ── 左侧：状态卡片（带大图标装饰） ──
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                cornerRadius = 22.dp,
+                insideMargin = PaddingValues(0.dp),
+                colors = CardDefaults.defaultColors(color = animatedContainerColor),
+                onClick = { if (statusEditable) showCoreSheet = true },
+                showIndication = statusEditable,
+                pressFeedbackType = PressFeedbackType.Sink
             ) {
-                // ── 左侧：核心状态面板 ──
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(innerHeight)
-                        .clip(RoundedRectangle(16.dp))
-                        .background(MiuixTheme.colorScheme.surfaceContainerHighest)
-                        .then(
-                            if (statusEditable) Modifier.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { showCoreSheet = true }
-                            else Modifier
-                        )
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.SpaceBetween
+                Box(
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    // 上部：图标 + 状态大字 + 核心名胶囊
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    // 底层：大装饰图标（Canvas 绘制 + 硬件旋转）
+                    val iconColor = animatedStatusColor.copy(alpha = 0.8f)
+                    val morphP = morphProgress.value
+                    val fromPaths = heroIconPaths(morphFrom)
+                    val toPaths = heroIconPaths(morphTo)
+                    val isFromRefresh = morphFrom == 2
+                    val isToRefresh = morphTo == 2
+                    Canvas(
+                        modifier = Modifier
+                            .size(150.dp)
+                            .align(Alignment.BottomEnd)
+                            .offset(x = 30.dp, y = 35.dp)
+                            .graphicsLayer { rotationZ = rotationAnim.value }
                     ) {
-                        Icon(
-                            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_box_foreground),
-                            contentDescription = null,
-                            tint = animatedStatusColor,
-                            modifier = Modifier.size(52.dp)
+                        val strokeW = size.minDimension * 0.055f
+                        val r = size.minDimension * 0.44f
+                        val cx = size.width / 2f
+                        val cy = size.height / 2f
+                        val center = Offset(cx, cy)
+                        val sr = r * 0.92f
+                        val symbolStroke = Stroke(
+                            width = strokeW * 1.1f,
+                            cap = StrokeCap.Round,
+                            join = StrokeJoin.Round
                         )
-                        Column {
-                            Text(
-                                text = statusText,
-                                style = MiuixTheme.textStyles.title3,
-                                fontWeight = FontWeight.Bold,
-                                color = animatedStatusColor
+
+                        // ── 外圈圆环 ──
+                        drawCircle(
+                            color = iconColor,
+                            radius = r,
+                            center = center,
+                            style = Stroke(width = strokeW, cap = StrokeCap.Round)
+                        )
+
+                        // ── 内部符号 ──
+                        // refresh 用 drawArc 绘制精确圆弧，其他用贝塞尔路径
+                        // 过渡时两层叠加，alpha 交叉淡入淡出
+
+                        val drawBezierSymbol: (Array<FloatArray>, Float) -> Unit = { paths, alpha ->
+                            val c = iconColor.copy(alpha = iconColor.alpha * alpha)
+                            // 检测相邻段是否共享端点（如 ✓ 的两段），
+                            // 共享则合并为一条 Path 避免 StrokeCap.Round 叠加产生亮斑
+                            val p0 = paths[0]; val p1 = paths[1]
+                            val continuous = p0[4] == p1[0] && p0[5] == p1[1]
+                            if (continuous) {
+                                val path = Path().apply {
+                                    moveTo(cx + p0[0] * sr, cy + p0[1] * sr)
+                                    quadraticBezierTo(
+                                        cx + p0[2] * sr, cy + p0[3] * sr,
+                                        cx + p0[4] * sr, cy + p0[5] * sr
+                                    )
+                                    quadraticBezierTo(
+                                        cx + p1[2] * sr, cy + p1[3] * sr,
+                                        cx + p1[4] * sr, cy + p1[5] * sr
+                                    )
+                                }
+                                drawPath(path, color = c, style = symbolStroke)
+                            } else {
+                                for (s in 0..1) {
+                                    val pts = paths[s]
+                                    val path = Path().apply {
+                                        moveTo(cx + pts[0] * sr, cy + pts[1] * sr)
+                                        quadraticBezierTo(
+                                            cx + pts[2] * sr, cy + pts[3] * sr,
+                                            cx + pts[4] * sr, cy + pts[5] * sr
+                                        )
+                                    }
+                                    drawPath(path, color = c, style = symbolStroke)
+                                }
+                            }
+                        }
+
+                        val drawRefreshSymbol: (Float) -> Unit = { alpha ->
+                            val c = iconColor.copy(alpha = iconColor.alpha * alpha)
+                            val arcR = sr * 0.42f
+                            val arcRect = androidx.compose.ui.geometry.Rect(
+                                cx - arcR, cy - arcR, cx + arcR, cy + arcR
                             )
+                            val arcStroke = Stroke(width = strokeW * 1.1f, cap = StrokeCap.Round)
+                            // 上半弧：从 200° 扫 140°
+                            drawArc(c, 200f, 140f, false, arcRect.topLeft, arcRect.size, style = arcStroke)
+                            // 下半弧：从 20° 扫 140°
+                            drawArc(c, 20f, 140f, false, arcRect.topLeft, arcRect.size, style = arcStroke)
+                        }
+
+                        // smoothstep 交叉淡入：避免线性 alpha 中间态亮度塌陷
+                        val fadeIn = morphP * morphP * (3f - 2f * morphP)   // 0→1 smooth
+                        val fadeOut = 1f - fadeIn                            // 1→0 smooth
+
+                        when {
+                            // 两端都不是 refresh：纯贝塞尔顶点插值，无需交叉淡入
+                            !isFromRefresh && !isToRefresh -> {
+                                val merged = Array(2) { s ->
+                                    val fp = fromPaths[s]; val tp = toPaths[s]
+                                    floatArrayOf(
+                                        lerp(fp[0], tp[0], morphP), lerp(fp[1], tp[1], morphP),
+                                        lerp(fp[2], tp[2], morphP), lerp(fp[3], tp[3], morphP),
+                                        lerp(fp[4], tp[4], morphP), lerp(fp[5], tp[5], morphP)
+                                    )
+                                }
+                                drawBezierSymbol(merged, 1f)
+                            }
+                            // 从 refresh 过渡到其他：refresh 淡出 + 贝塞尔淡入
+                            isFromRefresh && !isToRefresh -> {
+                                drawRefreshSymbol(fadeOut)
+                                drawBezierSymbol(toPaths, fadeIn)
+                            }
+                            // 从其他过渡到 refresh：贝塞尔淡出 + refresh 淡入
+                            !isFromRefresh && isToRefresh -> {
+                                drawBezierSymbol(fromPaths, fadeOut)
+                                drawRefreshSymbol(fadeIn)
+                            }
+                            // refresh → refresh（无变化）
+                            else -> {
+                                drawRefreshSymbol(1f)
+                            }
+                        }
+                    }
+                    // 上层：文字（限制宽度避免被右下角装饰图标遮挡）
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth(0.72f)
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = heroTitle,
+                            style = MiuixTheme.textStyles.title2,
+                            fontWeight = FontWeight.Bold,
+                            color = animatedOnContainerColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = heroSubtitle,
+                            style = MiuixTheme.textStyles.body2,
+                            color = animatedOnContainerColor.copy(alpha = 0.65f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (heroCoreLabel != null) {
                             Text(
-                                text = coreText.ifBlank { stringResource(R.string.home_placeholder_dash) },
-                                style = MiuixTheme.textStyles.footnote2,
-                                color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                                text = heroCoreLabel,
+                                style = MiuixTheme.textStyles.body2,
+                                color = animatedOnContainerColor.copy(alpha = 0.5f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
-                    // 底部：运行摘要
-                    if (showUnavailable) {
-                        Text(
-                            text = statusSummary,
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = MiuixTheme.colorScheme.onSurfaceSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    } else {
-                        MarqueeText(
-                            text = statusSummary,
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = MiuixTheme.colorScheme.onSurfaceSecondary
-                        )
-                    }
-                }
-
-                // ── 右侧：配置信息面板 ──
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(innerHeight)
-                        .clip(RoundedRectangle(16.dp))
-                        .background(MiuixTheme.colorScheme.surfaceContainerHighest)
-                        .padding(14.dp),
-                    verticalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    HeroInfoRow(
-                        label = stringResource(R.string.home_mode_label),
-                        value = modeText.ifBlank { stringResource(R.string.home_placeholder_dash) },
-                        enabled = statusEditable,
-                        onClick = { showModeSheet = true }
-                    )
-                    HeroInfoRow(
-                        label = stringResource(R.string.home_ipv6_label),
-                        value = when {
-                            ipv6Text.equals("true", ignoreCase = true) -> stringResource(R.string.common_on)
-                            ipv6Text.equals("false", ignoreCase = true) -> stringResource(R.string.common_off)
-                            else -> stringResource(R.string.home_placeholder_dash)
-                        },
-                        enabled = statusEditable,
-                        onClick = { showIpv6Sheet = true }
-                    )
-                    HeroInfoRow(
-                        label = stringResource(R.string.home_dns_label),
-                        value = dnsMode.ifBlank { stringResource(R.string.home_placeholder_dash) }
-                    )
                 }
             }
 
-            // ── 操作按钮 ──
-            val showRunningControls = isRunning || status is ServiceStatus.Stopping || status is ServiceStatus.Restarting
-            androidx.compose.animation.AnimatedContent(
-                targetState = showRunningControls,
-                transitionSpec = {
-                    (fadeIn(animationSpec = tween(220)) +
-                        slideInVertically(
-                            animationSpec = tween(220),
-                            initialOffsetY = { it / 6 }
-                        )).togetherWith(
-                        fadeOut(animationSpec = tween(160))
-                    ).using(SizeTransform(clip = false))
-                },
-                label = "hero_buttons"
-            ) { running ->
-                if (running) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // ── 右侧：双信息卡（模式 + 核心） ──
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 模式卡片
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    cornerRadius = 18.dp,
+                    insideMargin = PaddingValues(0.dp),
+                    colors = CardDefaults.defaultColors(),
+                    onClick = { if (statusEditable) showModeSheet = true },
+                    showIndication = statusEditable,
+                    pressFeedbackType = PressFeedbackType.Sink
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        HeroActionButton(
-                            text = stringResource(R.string.home_action_stop),
-                            tone = if (isBusy) HeroButtonTone.Muted else HeroButtonTone.Danger,
-                            enabled = isRunning && isEnvReady,
-                            loading = status is ServiceStatus.Stopping,
-                            onClick = onStop,
-                            modifier = Modifier.weight(1f)
+                        Text(
+                            text = stringResource(R.string.home_mode_label),
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceSecondary
                         )
-                        HeroActionButton(
-                            text = stringResource(R.string.home_action_reload),
-                            tone = if (isBusy) HeroButtonTone.Muted else HeroButtonTone.Warning,
-                            enabled = isRunning && isEnvReady,
-                            loading = status is ServiceStatus.Restarting,
-                            onClick = onReload,
-                            modifier = Modifier.weight(1f)
+                        Text(
+                            text = modeText.ifBlank { stringResource(R.string.home_placeholder_dash) }.uppercase(),
+                            style = MiuixTheme.textStyles.title4,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        if (canReloadConfig) {
-                            HeroActionButton(
-                                text = stringResource(R.string.home_action_reload_config),
-                                tone = if (isBusy) HeroButtonTone.Muted else HeroButtonTone.Primary,
-                                enabled = isRunning && isEnvReady,
-                                onClick = {
-                                    scope.launch {
-                                        val res = BoxApi.reloadConfig()
-                                        toastMessage = if (res.exitCode == 0) {
-                                            reloadConfigSuccessText
-                                        } else {
-                                            res.stderr.ifBlank { reloadConfigFailedText }
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
                     }
-                } else {
-                    HeroActionButton(
-                        text = stringResource(R.string.home_action_start),
-                        tone = HeroButtonTone.Primary,
-                        enabled = isStopped && isEnvReady,
-                        loading = status is ServiceStatus.Starting,
-                        onClick = onStart,
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
+                // IPv6 卡片
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    cornerRadius = 18.dp,
+                    insideMargin = PaddingValues(0.dp),
+                    colors = CardDefaults.defaultColors(),
+                    onClick = { if (statusEditable) showIpv6Sheet = true },
+                    showIndication = statusEditable,
+                    pressFeedbackType = PressFeedbackType.Sink
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.home_ipv6_label),
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceSecondary
+                        )
+                        Text(
+                            text = if (ipv6Text.equals("true", ignoreCase = true))
+                                stringResource(R.string.common_on) else stringResource(R.string.common_off),
+                            style = MiuixTheme.textStyles.title4,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── 操作按钮（卡片外部） ──
+        val showRunningControls = isRunning || status is ServiceStatus.Stopping || status is ServiceStatus.Restarting
+        androidx.compose.animation.AnimatedContent(
+            targetState = showRunningControls,
+            transitionSpec = {
+                (fadeIn(animationSpec = tween(220)) +
+                    slideInVertically(
+                        animationSpec = tween(220),
+                        initialOffsetY = { it / 6 }
+                    )).togetherWith(
+                    fadeOut(animationSpec = tween(160))
+                ).using(SizeTransform(clip = false))
+            },
+            label = "hero_buttons"
+        ) { running ->
+            if (running) {
+                HomeHeroSegmentedActions(
+                    canReloadConfig = canReloadConfig,
+                    enabled = isRunning && isEnvReady && !isBusy,
+                    isRestarting = status is ServiceStatus.Restarting,
+                    isStopping = status is ServiceStatus.Stopping,
+                    onReloadConfig = {
+                        scope.launch {
+                            val res = BoxApi.reloadConfig()
+                            toastMessage = if (res.exitCode == 0) {
+                                reloadConfigSuccessText
+                            } else {
+                                res.stderr.ifBlank { reloadConfigFailedText }
+                            }
+                        }
+                    },
+                    onStop = onStop,
+                    onRestart = onReload
+                )
+            } else {
+                HeroActionButton(
+                    text = stringResource(R.string.home_action_start),
+                    tone = HeroButtonTone.Primary,
+                    enabled = isStopped && isEnvReady,
+                    loading = status is ServiceStatus.Starting,
+                    onClick = onStart,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
@@ -816,30 +1009,143 @@ private fun HeroInfoRow(
             .then(
                 if (enabled && onClick != null) {
                     Modifier
-                        .clip(RoundedRectangle(8.dp))
+                        .clip(RoundedRectangle(10.dp))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) { onClick() }
                 } else Modifier
-            ),
+            )
+            .padding(vertical = 1.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = label,
-            style = MiuixTheme.textStyles.footnote1,
+            style = MiuixTheme.textStyles.footnote2,
             color = MiuixTheme.colorScheme.onSurfaceSecondary,
             modifier = Modifier.weight(1f)
         )
         Text(
             text = value,
-            style = MiuixTheme.textStyles.footnote1,
+            style = MiuixTheme.textStyles.body2,
             fontWeight = FontWeight.Medium,
             color = MiuixTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+/**
+ * 首页段式胶囊操作条
+ *
+ * 单个胶囊容器内包含 2-3 个操作：[重载] | [停止] | [重启]
+ * 每段使用独立的语义色（Monet 自适应）：info / danger / warning
+ * 段间用细垂直分隔线区分，整体符合 miuix 胶囊风格。
+ */
+@Composable
+private fun HomeHeroSegmentedActions(
+    canReloadConfig: Boolean,
+    enabled: Boolean,
+    isRestarting: Boolean,
+    isStopping: Boolean,
+    onReloadConfig: () -> Unit,
+    onStop: () -> Unit,
+    onRestart: () -> Unit
+) {
+    val scheme = MiuixTheme.colorScheme
+    val containerColor = scheme.surfaceContainer
+    val dividerColor = scheme.dividerLine.copy(alpha = 0.5f)
+
+    // 三档语义色，来源于 homeInfoColors/Danger/Warning，均支持 Monet
+    val infoColor = homeInfoColors().accent
+    val dangerColor = homeDangerColors().accent
+    val warningColor = homeWarningColors().accent
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+            .clip(Capsule())
+            .background(containerColor),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (canReloadConfig) {
+            SegmentedActionItem(
+                text = stringResource(R.string.home_action_reload_config),
+                color = infoColor,
+                enabled = enabled,
+                onClick = onReloadConfig,
+                modifier = Modifier.weight(1f).fillMaxHeight()
+            )
+            SegmentedDivider(color = dividerColor)
+        }
+        SegmentedActionItem(
+            text = stringResource(R.string.home_action_stop),
+            color = dangerColor,
+            enabled = enabled,
+            loading = isStopping,
+            onClick = onStop,
+            modifier = Modifier.weight(1f).fillMaxHeight()
+        )
+        SegmentedDivider(color = dividerColor)
+        SegmentedActionItem(
+            text = stringResource(R.string.home_action_reload),
+            color = warningColor,
+            enabled = enabled,
+            loading = isRestarting,
+            onClick = onRestart,
+            modifier = Modifier.weight(1f).fillMaxHeight()
+        )
+    }
+}
+
+@Composable
+private fun SegmentedActionItem(
+    text: String,
+    color: Color,
+    enabled: Boolean,
+    loading: Boolean = false,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val animatedColor by animateColorAsState(
+        targetValue = if (enabled && !loading) color else color.copy(alpha = 0.38f),
+        animationSpec = tween(durationMillis = 260),
+        label = "segmented_item_color"
+    )
+    Box(
+        modifier = modifier.clickable(
+            enabled = enabled && !loading,
+            onClick = onClick
+        ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (loading) {
+            top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                color = animatedColor
+            )
+        } else {
+            Text(
+                text = text,
+                style = MiuixTheme.textStyles.button,
+                fontWeight = FontWeight.SemiBold,
+                color = animatedColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun SegmentedDivider(color: Color) {
+    Box(
+        modifier = Modifier
+            .width(1.dp)
+            .fillMaxHeight()
+            .padding(vertical = 12.dp)
+            .background(color)
+    )
 }
 
 private enum class HeroButtonTone { Primary, Danger, Warning, Muted }
@@ -853,23 +1159,18 @@ private fun HeroActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val dark = isSystemInDarkTheme()
-    // 柔和按钮色：低饱和度背景 + 同色系深色前景，护眼不刺激
+    val statusColors = when (tone) {
+        HeroButtonTone.Primary -> homeInfoColors()
+        HeroButtonTone.Danger -> homeDangerColors()
+        HeroButtonTone.Warning -> homeWarningColors()
+        HeroButtonTone.Muted -> homeNeutralColors()
+    }
     val (bg, fg) = when (tone) {
-        HeroButtonTone.Primary -> {
-            if (dark) Color(0xFF1E3A5F) to Color(0xFFA8C8E8)
-            else Color(0xFFD6E6F6) to Color(0xFF1A5276)
-        }
-        HeroButtonTone.Danger -> {
-            if (dark) Color(0xFF4A2028) to Color(0xFFE8A0A0)
-            else Color(0xFFF5D5D5) to Color(0xFF8B2020)
-        }
-        HeroButtonTone.Warning -> {
-            if (dark) Color(0xFF3D3018) to Color(0xFFD8C090)
-            else Color(0xFFF2E6D0) to Color(0xFF7A5A1A)
-        }
         HeroButtonTone.Muted -> {
             MiuixTheme.colorScheme.secondaryContainer to MiuixTheme.colorScheme.onSecondaryContainer
+        }
+        else -> {
+            statusColors.container to statusColors.onContainer
         }
     }
     val animatedBg by animateColorAsState(
@@ -915,6 +1216,29 @@ private fun HeroActionButton(
 }
 
 @Composable
+// 0=check, 1=error, 2=refresh, 3=pause
+// 每状态 2 笔画，每笔画 [startX,startY, ctrlX,ctrlY, endX,endY]
+// quadraticBezierTo(ctrl, end) — 直线时 ctrl 在中点，弧线时 ctrl 偏移
+private fun heroIconPaths(state: Int): Array<FloatArray> = when (state) {
+    0 -> arrayOf( // ✓ Check（直线：ctrl 在两端中点）
+        floatArrayOf(-0.42f, 0.04f, -0.27f, 0.20f, -0.12f, 0.36f),
+        floatArrayOf(-0.12f, 0.36f, 0.18f, 0.02f, 0.48f, -0.32f)
+    )
+    1 -> arrayOf( // ! Error（两段直线）
+        floatArrayOf(0f, -0.42f, 0f, -0.17f, 0f, 0.08f),
+        floatArrayOf(0f, 0.28f, 0f, 0.32f, 0f, 0.36f)
+    )
+    2 -> arrayOf( // ↻ Refresh（两段弧线：ctrl 向外偏移成半圆）
+        floatArrayOf(0.38f, 0.18f, 0.38f, -0.38f, -0.18f, -0.38f),
+        floatArrayOf(-0.38f, -0.18f, -0.38f, 0.38f, 0.18f, 0.38f)
+    )
+    else -> arrayOf( // ⏸ Pause（两段直线）
+        floatArrayOf(-0.20f, -0.34f, -0.20f, 0f, -0.20f, 0.34f),
+        floatArrayOf(0.20f, -0.34f, 0.20f, 0f, 0.20f, 0.34f)
+    )
+}
+
+@Composable
 private fun HomeSheetSummary(text: String) {
     Text(
         text = text,
@@ -947,7 +1271,9 @@ private fun HomeSheetOptionItem(
         cornerRadius = 16.dp,
         insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
         colors = CardDefaults.defaultColors(color = containerColor),
-        onClick = onClick
+        onClick = onClick,
+        showIndication = true,
+        pressFeedbackType = PressFeedbackType.Sink
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),

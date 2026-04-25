@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<fan.appcompat.internal.app.widget.SearchActionModeView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/search_panel"
+    style="@style/Widget.SearchActionMode.Input"
+    android:layout_width="match_parent"
+    android:layout_height="@dimen/miuix_appcompat_search_view_default_height"
+    android:paddingStart="@dimen/miuix_appcompat_search_mode_bg_padding"
+    android:paddingTop="@dimen/miuix_appcompat_search_mode_bg_padding_top"
+    android:paddingBottom="@dimen/miuix_appcompat_search_mode_bg_padding_bottom">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/miuix_appcompat_search_mode_bg_size">
+
+        <TextView
+            android:id="@+id/search_text_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_alignParentEnd="true"
+            android:layout_marginStart="@dimen/miuix_appcompat_search_action_mode_cancel_text_margin_start"
+            android:layout_marginEnd="@dimen/miuix_appcompat_search_action_mode_cancel_text_margin_end"
+            android:background="@null"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:paddingHorizontal="@dimen/miuix_appcompat_search_action_mode_cancel_text_padding_horizontal"
+            android:text="@string/miuix_appcompat_search_action_mode_cancel"
+            android:textColor="?attr/searchActionModeCancelTextColor"
+            android:textDirection="locale"
+            android:textSize="@dimen/miuix_appcompat_search_action_mode_cancel_text_size" />
+
+        <LinearLayout
+            android:id="@+id/search_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?attr/searchModeEditTextBackground"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:paddingStart="@dimen/miuix_appcompat_edit_text_search_bg_icon_padding_start"
+                android:paddingEnd="@dimen/miuix_appcompat_edit_text_search_bg_icon_padding_end"
+                android:scaleType="centerInside"
+                android:src="?attr/searchModeEditTextIcon" />
+
+            <fan.androidbase.widget.ClearableEditText
+                android:id="@android:id/input"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1.0"
+                android:background="@null"
+                android:contentDescription="@string/miuix_appcompat_search_input_description"
+                android:drawableEnd="?attr/clearableEditTextIcon"
+                android:gravity="center_vertical"
+                android:paddingStart="0dp"
+                android:paddingTop="@dimen/miuix_appcompat_search_edit_text_padding_vertical"
+                android:paddingBottom="@dimen/miuix_appcompat_search_edit_text_padding_vertical"
+                android:textColorHint="?attr/searchActionModeEditTextHintColor"
+                android:textDirection="locale"
+                android:textSize="@dimen/miuix_appcompat_search_edit_text_size" />
+        </LinearLayout>
+    </RelativeLayout>
+</fan.appcompat.internal.app.widget.SearchActionModeView>

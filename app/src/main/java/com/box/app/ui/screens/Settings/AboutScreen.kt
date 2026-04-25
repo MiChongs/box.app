@@ -121,7 +121,7 @@ fun AboutScreen(onBack: () -> Unit) {
         AboutContent(
             padding = PaddingValues(
                 top = innerPadding.calculateTopPadding(),
-                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                bottom = com.box.app.ui.components.systemNavBarBottomPadding()
             ),
             topAppBarScrollBehavior = topAppBarScrollBehavior,
             lazyListState = lazyListState,

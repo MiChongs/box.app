@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="500dp"
+    android:height="71dp"
+    android:viewportWidth="500"
+    android:viewportHeight="71">
+
+    <!-- "Box" wordmark (white, for dark/blur backgrounds) -->
+    <!-- B with even-odd cutouts for bowl interiors -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M165,4.3 L200,4.3 Q220,4.3 220,17.5 Q220,29 205,30 L207,30 Q228,30 228,43 Q228,54.79 208,54.79 L165,54.79 Z M174,12.5 L196,12.5 Q210,12.5 210,17.5 Q210,23 196,23 L174,23 Z M174,37 L204,37 Q218,37 218,43 Q218,48 204,48 L174,48 Z" />
+
+    <!-- o with even-odd inner cutout -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M257,17.3 C272,17.3 280,25 280,36 C280,47 272,54.79 257,54.79 C242,54.79 234,47 234,36 C234,25 242,17.3 257,17.3 Z M257,25.5 C265,25.5 271,29.5 271,36 C271,42.5 265,46.5 257,46.5 C249,46.5 243,42.5 243,36 C243,29.5 249,25.5 257,25.5 Z" />
+
+    <!-- x as single outline -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M296,17.3 L306,17.3 L318,33 L330,17.3 L340,17.3 L324,36.5 L340,54.79 L330,54.79 L318,40 L306,54.79 L296,54.79 L312,36.5 Z" />
+</vector>

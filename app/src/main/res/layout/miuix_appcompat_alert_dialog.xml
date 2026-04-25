@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<fan.appcompat.internal.widget.DialogRootView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/dialog_root_view"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <include layout="@layout/miuix_appcompat_alert_dialog_dim_bg" />
+</fan.appcompat.internal.widget.DialogRootView>

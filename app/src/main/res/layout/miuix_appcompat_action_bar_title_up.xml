@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/up"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center|start"
+    android:contentDescription="@string/actionbar_button_up_description"
+    android:forceDarkAllowed="false"
+    android:src="?android:attr/homeAsUpIndicator"
+    android:visibility="gone" />

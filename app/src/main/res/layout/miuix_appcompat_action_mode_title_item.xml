@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center">
+
+    <Button
+        android:id="@android:id/button1"
+        style="?attr/actionModeCancelButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.0"
+        android:importantForAccessibility="no">
+
+        <fan.appcompat.internal.view.CollapseTitleTextView
+            android:id="@android:id/title"
+            style="?attr/collapseTitleTheme"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textAppearance="@style/TextAppearance.Widget.ActionMode.Title" />
+    </LinearLayout>
+
+    <Button
+        android:id="@android:id/button2"
+        style="?attr/actionModeSelectButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+</LinearLayout>

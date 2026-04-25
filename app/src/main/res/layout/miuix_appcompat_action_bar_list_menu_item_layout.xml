@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<fan.appcompat.internal.view.menu.ListMenuItemView xmlns:android="http://schemas.android.com/apk/res/android"
+    style="?attr/listMenuItemStyle"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <RelativeLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:layout_marginStart="?android:attr/listPreferredItemPaddingLeft"
+        android:layout_marginEnd="?android:attr/listPreferredItemPaddingRight"
+        android:layout_weight="1.0"
+        android:duplicateParentState="true">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:duplicateParentState="true"
+            android:ellipsize="marquee"
+            android:fadingEdge="horizontal"
+            android:singleLine="true"
+            android:textAlignment="viewStart"
+            android:textAppearance="@style/TextAppearance.Medium.MenuList" />
+
+        <TextView
+            android:id="@+id/shortcut"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/title"
+            android:duplicateParentState="true"
+            android:singleLine="true"
+            android:textAlignment="viewStart"
+            android:textAppearance="@style/TextAppearance.Small.MenuList" />
+    </RelativeLayout>
+</fan.appcompat.internal.view.menu.ListMenuItemView>

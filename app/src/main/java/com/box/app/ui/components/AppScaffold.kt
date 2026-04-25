@@ -68,10 +68,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.All
+import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.icon.extended.Sidebar
 import androidx.compose.ui.graphics.Color
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -85,7 +85,7 @@ import com.box.app.ui.screens.SmartDnsWebUiScreen
 import com.box.app.ui.screens.SubStoreScreen
 import com.box.app.ui.screens.tools.ToolsLogsScreen
 import com.box.app.ui.screens.tools.ToolsUpdateSubscriptionScreen
-import com.box.app.ui.screens.OnboardingScreen
+import com.box.app.provision.activity.DefaultActivity
 import com.box.app.R
 import com.box.app.ui.components.LocalLiquidBackdrop
 import com.box.app.ui.components.bottomsheets.LocalSheetBackdrop
@@ -245,8 +245,6 @@ fun AppScaffold() {
     var navVisible by remember { mutableStateOf(true) }
     var pagerUserScrollEnabled by remember { mutableStateOf(true) }
     var mainTabAtRoot by remember { mutableStateOf(true) }
-    var isInEditorMode by remember { mutableStateOf(false) }
-
     var backdropVersion by remember { mutableIntStateOf(0) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -423,21 +421,63 @@ fun AppScaffold() {
     val mainFloatingNavSpaceDp = 64.dp
     val mainSystemNavInsetDp = if (systemBarSettings.navigationBar == SystemBarMode.TRANSPARENT) systemNavInsetDp else 0.dp
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (showOnboarding) {
-            OnboardingScreen(
-                onFinish = {
-                    appPrefs.edit().putBoolean("onboarding_completed", true).apply()
-                    onboardingCompleted = true
-                    showOnboarding = false
-                }
-            )
-            return@Box
+    // ── OOBE → 主界面入场动画 ──
+    // needsEnterAnim：OOBE 完成瞬间设为 true，触发一次入场动画后复位
+    var needsEnterAnim by remember { mutableStateOf(false) }
+    // progress 0→1 驱动 alpha 和 scale
+    val mainEnterProgress = remember { Animatable(1f) }
+
+    // OOBE 完成检测 + DefaultActivity 启动
+    if (showOnboarding) {
+        LaunchedEffect(Unit) {
+            // 将 progress 预设为 0（动画起点），保证主内容首帧不可见
+            mainEnterProgress.snapTo(0f)
+            val intent = android.content.Intent(context, DefaultActivity::class.java)
+            context.startActivity(intent)
         }
+        DisposableEffect(lifecycleOwner) {
+            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                    val done = appPrefs.getBoolean("onboarding_completed", false)
+                    if (done) {
+                        onboardingCompleted = true
+                        needsEnterAnim = true
+                        showOnboarding = false
+                    }
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
+    }
+
+    // OOBE 刚完成 → 播放入场动画（放大渐入，与完成页缩小渐出形成 zoom-through）
+    LaunchedEffect(needsEnterAnim) {
+        if (needsEnterAnim) {
+            // 确保起点为 0（防止 recomposition 时 progress 已被污染）
+            mainEnterProgress.snapTo(0f)
+            mainEnterProgress.animateTo(1f, tween(500, easing = FastOutSlowInEasing))
+            needsEnterAnim = false
+        }
+    }
+
+    // 单一 progress 驱动 alpha 和 scale，减少 graphicsLayer 开销
+    val enterP = mainEnterProgress.value.coerceIn(0f, 1f)
+    val mainAlpha = enterP
+    val mainScale = 0.92f + 0.08f * enterP
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // OOBE 进行中：主内容不渲染（DefaultActivity 在最上层覆盖）
+        if (showOnboarding) return@Box
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer {
+                    alpha = mainAlpha
+                    scaleX = mainScale
+                    scaleY = mainScale
+                }
                 .onSizeChanged {
                     appScreenContainerWidthPx = it.width.toFloat()
                 }
@@ -540,7 +580,6 @@ fun AppScaffold() {
                                                 onOpenLogsRequestConsumed = { openToolsLogsRequest = 0 },
                                                 openUpdateSubscriptionRequest = openToolsUpdateSubscriptionRequest,
                                                 onOpenUpdateSubscriptionRequestConsumed = { openToolsUpdateSubscriptionRequest = 0 },
-                                                onEditorModeChange = { isInEditorMode = it },
                                                 openLogsFromHome = logsFromHome,
                                                 onExitLogsToHome = {
                                                     logsFromHome = false
@@ -864,19 +903,19 @@ fun AppScaffold() {
                         MiuixNavigationBarItem(
                             selected = mainPagerState.selectedPage == 0,
                             onClick = { mainPagerState.animateToPage(0) },
-                            icon = Icons.Filled.Home,
+                            icon = MiuixIcons.Sidebar,
                             label = context.getString(R.string.main_tab_home)
                         )
                         MiuixNavigationBarItem(
                             selected = mainPagerState.selectedPage == 1,
                             onClick = { mainPagerState.animateToPage(1) },
-                            icon = Icons.Filled.Build,
+                            icon = MiuixIcons.All,
                             label = context.getString(R.string.main_tab_tools)
                         )
                         MiuixNavigationBarItem(
                             selected = mainPagerState.selectedPage == 2,
                             onClick = { mainPagerState.animateToPage(2) },
-                            icon = Icons.Filled.Settings,
+                            icon = MiuixIcons.Settings,
                             label = context.getString(R.string.main_tab_settings)
                         )
                     }

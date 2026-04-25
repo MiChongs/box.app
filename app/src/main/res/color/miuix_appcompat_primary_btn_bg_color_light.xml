@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:alpha="0.1" android:color="@color/miuix_appcompat_primary_button_bg_color_normal_light" android:state_enabled="false" />
+    <item android:color="@color/miuix_appcompat_primary_button_bg_color_normal_light" />
+</selector>

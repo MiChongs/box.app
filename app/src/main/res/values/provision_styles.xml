@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ This file is part of HyperCeiler.
+  ~
+  ~ HyperCeiler is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as
+  ~ published by the Free Software Foundation, either version 3 of the
+  ~ License.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  ~
+  ~ Copyright (C) 2023-2026 HyperCeiler Contributions
+  -->
+<resources>
+    <style name="ProvisionPageTitleTextStyle">
+        <item name="android:textSize">@dimen/provision_title_text_size</item>
+        <item name="android:textColor">@color/provision_title_text_color</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:gravity">bottom|center_horizontal</item>
+        <item name="android:maxLines">3</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+
+    <style name="ProvisionPageSubTitleTextStyle">
+        <item name="android:textSize">@dimen/provision_subtitle_text_size</item>
+        <item name="android:textColor">@color/provision_subtitle_text_color</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:maxLines">3</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+
+    <style name="ProvisionServiceTitleTextStyle">
+        <item name="android:textSize">@dimen/provision_service_name_text_size</item>
+        <item name="android:textColor">@color/provision_service_name_color</item>
+        <item name="android:layout_marginBottom">@dimen/provision_service_name_margin_bottom</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="ProvisionServiceDescTextStyle">
+        <item name="android:textSize">@dimen/provision_service_desc_text_size</item>
+        <item name="android:textColor">@color/provision_service_desc_color</item>
+        <item name="android:textColorLink">@color/provision_item_policy_text_color</item>
+    </style>
+
+    <style name="ProvisionListSecondaryTextStyle">
+        <item name="android:textSize">@dimen/miuix_appcompat_secondary_text_size</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:textColor">?attr/textColorListSecondary</item>
+    </style>
+
+
+    <style name="BottomSheetModalStyle">
+        <item name="android:background">@color/miuix_color_black_solid_10</item>
+        <item name="contentHeightMatchParent">true</item>
+        <item name="miuixPaddingBottomSystemWindowInsets">false</item>
+    </style>
+</resources>

@@ -352,7 +352,7 @@ fun HyperBottomSheet(
     endAction: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
-    val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val navBarHeight = com.box.app.ui.components.systemNavBarBottomPadding()
     val hyperBlur = com.box.app.utils.ThemeManager.shouldUseBlurEffects()
     if (hyperBlur) com.box.app.ui.components.bottomsheets.SheetBlurEffect()
 

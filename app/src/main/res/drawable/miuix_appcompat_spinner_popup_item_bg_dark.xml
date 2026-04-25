@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/miuix_appcompat_spinner_popup_checkable_item_bg_color_dark" />
+    <padding
+        android:bottom="@dimen/miuix_appcompat_spinner_popup_item_bg_padding_vertical"
+        android:left="@dimen/miuix_appcompat_spinner_dropdown_item_padding_start"
+        android:right="@dimen/miuix_appcompat_spinner_dropdown_item_padding_end"
+        android:top="@dimen/miuix_appcompat_spinner_popup_item_bg_padding_vertical" />
+</shape>

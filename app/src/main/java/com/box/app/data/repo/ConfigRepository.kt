@@ -367,7 +367,7 @@ object ConfigRepository {
     }
 
     suspend fun warmUpShell(): Unit = withContext(Dispatchers.IO) {
-        ShellExecutor.warmUpRootShell(1)
+        ShellExecutor.warmUpRootShell()
     }
 
     suspend fun getSettingsIni(): String? {

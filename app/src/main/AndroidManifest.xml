@@ -1,13 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
+    <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur,fan.animation,fan.appcompat,fan.basewidget,fan.bottomsheet,fan.cardview,fan.core,fan.flexible,fan.folme,fan.graphics,fan.haptic,fan.navigator,fan.nestedheader,fan.pickerwidget,fan.popupwidget,fan.preference,fan.recyclerview,fan.slidingwidget,fan.smooth,fan.springback,fan.stretchablewidget,fan.theme,fan.transition,fan.viewpager,fan.viewpager2" />
 
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <!-- 国产 ROM（MIUI/HyperOS/ColorOS/OriginOS）"获取应用列表"权限 -->
     <uses-permission android:name="com.android.permission.GET_INSTALLED_APPS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -66,7 +66,38 @@
         <service
             android:name=".service.BoxForegroundService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:stopWithTask="false"
+            android:foregroundServiceType="connectedDevice" />
+
+        <receiver
+            android:name=".service.ServiceRestartReceiver"
+            android:exported="false" />
+
+        <!-- Provision OOBE Activities -->
+        <activity
+            android:name=".provision.activity.DefaultActivity"
+            android:exported="false"
+            android:theme="@style/ProvisionTheme" />
+        <activity
+            android:name=".provision.activity.PermissionSettingsActivity"
+            android:exported="false"
+            android:theme="@style/ProvisionTheme" />
+        <activity
+            android:name=".provision.activity.TermsAndStatementActivity"
+            android:exported="false"
+            android:theme="@style/ProvisionTheme" />
+        <activity
+            android:name=".provision.activity.BasicSettingsActivity"
+            android:exported="false"
+            android:theme="@style/ProvisionTheme" />
+        <activity
+            android:name=".provision.activity.CongratulationActivity"
+            android:exported="false"
+            android:theme="@style/ProvisionTheme" />
+
+        <service
+            android:name=".provision.service.ProvisionAnimService"
+            android:exported="false" />
 
     </application>
 

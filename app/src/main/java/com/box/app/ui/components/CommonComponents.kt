@@ -65,6 +65,16 @@ val LocalFloatingNavBarSpaceDp = staticCompositionLocalOf { 64.dp }
 val LocalNavigationBarsPaddingEnabled = staticCompositionLocalOf { true }
 val LocalSystemNavBarInsetDp = staticCompositionLocalOf { 0.dp }
 
+/**
+ * 根据系统导航栏模式返回正确的底部 inset：
+ * - TRANSPARENT → 实际系统导航栏高度
+ * - OPAQUE → 0.dp（AppTheme 已全局消费该 inset）
+ */
+@Composable
+fun systemNavBarBottomPadding(): Dp {
+    return LocalSystemNavBarInsetDp.current
+}
+
 fun Modifier.navigationBarsPaddingIfEnabled(): Modifier = composed {
     if (LocalNavigationBarsPaddingEnabled.current) {
         this.windowInsetsPadding(WindowInsets.navigationBars)

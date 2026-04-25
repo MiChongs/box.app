@@ -218,12 +218,12 @@ object HomeRepository {
         runCatching {
             val obj = JSONObject(raw)
             val count = obj.optString("count", "-")
-            val used = obj.optLong("used", 0L)
-            val total = obj.optLong("total", 0L)
-            val remain = obj.optLong("remain", 0L)
+            val used = obj.optString("used", "0").toBigIntegerOrNull() ?: java.math.BigInteger.ZERO
+            val total = obj.optString("total", "0").toBigIntegerOrNull() ?: java.math.BigInteger.ZERO
+            val remain = obj.optString("remain", "0").toBigIntegerOrNull() ?: java.math.BigInteger.ZERO
             val progress = obj.optDouble("progress", 0.0).toFloat().coerceIn(0f, 1f)
 
-            val subtitle = if (total > 0L) {
+            val subtitle = if (total > java.math.BigInteger.ZERO) {
                 ctx.getString(
                     com.box.app.R.string.home_subscription_total,
                     HomeMetricsApi.formatBytes(total)
@@ -243,9 +243,9 @@ object HomeRepository {
                             name = itObj.optString("name", "-"),
                             url = url,
                             expiryDate = itObj.optString("expiryDate", "-"),
-                            uploadBytes = itObj.optLong("uploadBytes", 0L),
-                            downloadBytes = itObj.optLong("downloadBytes", 0L),
-                            totalBytes = itObj.optLong("totalBytes", 0L),
+                            uploadBytes = itObj.optString("uploadBytes", "0").toBigIntegerOrNull() ?: java.math.BigInteger.ZERO,
+                            downloadBytes = itObj.optString("downloadBytes", "0").toBigIntegerOrNull() ?: java.math.BigInteger.ZERO,
+                            totalBytes = itObj.optString("totalBytes", "0").toBigIntegerOrNull() ?: java.math.BigInteger.ZERO,
                             lastUpdatedAtMs = itObj.optLong("lastUpdatedAtMs", 0L),
                             loading = false
                         )
@@ -279,9 +279,9 @@ object HomeRepository {
             val obj = JSONObject()
             obj.put("count", state.subscriptionCount)
             obj.put("subtitle", state.subscriptionSubtitle)
-            obj.put("used", state.subscriptionUsedBytes)
-            obj.put("total", state.subscriptionTotalBytes)
-            obj.put("remain", state.subscriptionRemainBytes)
+            obj.put("used", state.subscriptionUsedBytes.toString())
+            obj.put("total", state.subscriptionTotalBytes.toString())
+            obj.put("remain", state.subscriptionRemainBytes.toString())
             obj.put("progress", state.subscriptionProgress.toDouble())
 
             val items = JSONArray()
@@ -290,9 +290,9 @@ object HomeRepository {
                 itObj.put("name", item.name)
                 itObj.put("url", item.url)
                 itObj.put("expiryDate", item.expiryDate)
-                itObj.put("uploadBytes", item.uploadBytes)
-                itObj.put("downloadBytes", item.downloadBytes)
-                itObj.put("totalBytes", item.totalBytes)
+                itObj.put("uploadBytes", item.uploadBytes.toString())
+                itObj.put("downloadBytes", item.downloadBytes.toString())
+                itObj.put("totalBytes", item.totalBytes.toString())
                 itObj.put("lastUpdatedAtMs", item.lastUpdatedAtMs)
                 items.put(itObj)
             }
@@ -385,9 +385,9 @@ object HomeRepository {
                     subscriptionSubtitle = "-",
                     subscriptionUrls = emptyList(),
                     subscriptionItems = emptyList(),
-                    subscriptionUsedBytes = 0L,
-                    subscriptionTotalBytes = 0L,
-                    subscriptionRemainBytes = 0L,
+                    subscriptionUsedBytes = java.math.BigInteger.ZERO,
+                    subscriptionTotalBytes = java.math.BigInteger.ZERO,
+                    subscriptionRemainBytes = java.math.BigInteger.ZERO,
                     subscriptionProgress = 0f
                 )
             }
@@ -402,9 +402,9 @@ object HomeRepository {
                     subscriptionSubtitle = "-",
                     subscriptionUrls = emptyList(),
                     subscriptionItems = emptyList(),
-                    subscriptionUsedBytes = 0L,
-                    subscriptionTotalBytes = 0L,
-                    subscriptionRemainBytes = 0L,
+                    subscriptionUsedBytes = java.math.BigInteger.ZERO,
+                    subscriptionTotalBytes = java.math.BigInteger.ZERO,
+                    subscriptionRemainBytes = java.math.BigInteger.ZERO,
                     subscriptionProgress = 0f
                 )
             }
@@ -426,9 +426,9 @@ object HomeRepository {
             }
 
             val subInfo = provider.optJSONObject("subscriptionInfo")
-            val upload = subInfo?.run { optLong("Upload", optLong("upload", 0L)) } ?: 0L
-            val download = subInfo?.run { optLong("Download", optLong("download", 0L)) } ?: 0L
-            val total = subInfo?.run { optLong("Total", optLong("total", 0L)) } ?: 0L
+            val upload = subInfo?.run { optString("Upload", optString("upload", "0")).toBigIntegerOrNull() } ?: java.math.BigInteger.ZERO
+            val download = subInfo?.run { optString("Download", optString("download", "0")).toBigIntegerOrNull() } ?: java.math.BigInteger.ZERO
+            val total = subInfo?.run { optString("Total", optString("total", "0")).toBigIntegerOrNull() } ?: java.math.BigInteger.ZERO
             val expire = subInfo?.run { optLong("Expire", optLong("expire", 0L)) } ?: 0L
 
             val updatedAtMs = parseClashUpdatedAtMs(provider.optString("updatedAt", ""))
@@ -448,16 +448,16 @@ object HomeRepository {
             )
         }
 
-        val meteredItems = items.filter { it.totalBytes > 0L }
-        val usedSum = meteredItems.sumOf { it.uploadBytes + it.downloadBytes }
-        val totalSum = meteredItems.sumOf { it.totalBytes }
-        val remainSum = (totalSum - usedSum).coerceAtLeast(0L)
-        val progress = if (totalSum > 0L) (usedSum.toDouble() / totalSum.toDouble()).toFloat().coerceIn(0f, 1f) else 0f
+        val meteredItems = items.filter { it.totalBytes > java.math.BigInteger.ZERO }
+        val usedSum = meteredItems.fold(java.math.BigInteger.ZERO) { acc, it -> acc + it.uploadBytes + it.downloadBytes }
+        val totalSum = meteredItems.fold(java.math.BigInteger.ZERO) { acc, it -> acc + it.totalBytes }
+        val remainSum = (totalSum - usedSum).max(java.math.BigInteger.ZERO)
+        val progress = if (totalSum > java.math.BigInteger.ZERO) usedSum.toBigDecimal().divide(totalSum.toBigDecimal(), 6, java.math.RoundingMode.HALF_UP).toFloat().coerceIn(0f, 1f) else 0f
 
         updateMetrics {
             val next = it.copy(
-                subscriptionCount = if (totalSum > 0L) HomeMetricsApi.formatBytes(remainSum) else "-",
-                subscriptionSubtitle = if (totalSum > 0L) {
+                subscriptionCount = if (totalSum > java.math.BigInteger.ZERO) HomeMetricsApi.formatBytes(remainSum) else "-",
+                subscriptionSubtitle = if (totalSum > java.math.BigInteger.ZERO) {
                     AppApplication.appContext.getString(
                         com.box.app.R.string.home_subscription_total,
                         HomeMetricsApi.formatBytes(totalSum)
@@ -770,9 +770,9 @@ object HomeRepository {
                     subscriptionSubtitle = "-",
                     subscriptionUrls = emptyList(),
                     subscriptionItems = emptyList(),
-                    subscriptionUsedBytes = 0L,
-                    subscriptionTotalBytes = 0L,
-                    subscriptionRemainBytes = 0L,
+                    subscriptionUsedBytes = java.math.BigInteger.ZERO,
+                    subscriptionTotalBytes = java.math.BigInteger.ZERO,
+                    subscriptionRemainBytes = java.math.BigInteger.ZERO,
                     subscriptionProgress = 0f
                 )
             }
@@ -794,9 +794,9 @@ object HomeRepository {
                     subscriptionSubtitle = "-",
                     subscriptionUrls = emptyList(),
                     subscriptionItems = emptyList(),
-                    subscriptionUsedBytes = 0L,
-                    subscriptionTotalBytes = 0L,
-                    subscriptionRemainBytes = 0L,
+                    subscriptionUsedBytes = java.math.BigInteger.ZERO,
+                    subscriptionTotalBytes = java.math.BigInteger.ZERO,
+                    subscriptionRemainBytes = java.math.BigInteger.ZERO,
                     subscriptionProgress = 0f
                 )
             }
@@ -812,9 +812,9 @@ object HomeRepository {
                     name = old?.name ?: "Subscription ${idx + 1}",
                     url = url,
                     expiryDate = old?.expiryDate ?: "-",
-                    uploadBytes = old?.uploadBytes ?: 0L,
-                    downloadBytes = old?.downloadBytes ?: 0L,
-                    totalBytes = old?.totalBytes ?: 0L,
+                    uploadBytes = old?.uploadBytes ?: java.math.BigInteger.ZERO,
+                    downloadBytes = old?.downloadBytes ?: java.math.BigInteger.ZERO,
+                    totalBytes = old?.totalBytes ?: java.math.BigInteger.ZERO,
                     lastUpdatedAtMs = old?.lastUpdatedAtMs ?: 0L,
                     loading = true
                 )
@@ -834,9 +834,9 @@ object HomeRepository {
                             name = name,
                             url = url,
                             expiryDate = "-",
-                            uploadBytes = 0L,
-                            downloadBytes = 0L,
-                            totalBytes = 0L,
+                            uploadBytes = java.math.BigInteger.ZERO,
+                            downloadBytes = java.math.BigInteger.ZERO,
+                            totalBytes = java.math.BigInteger.ZERO,
                             lastUpdatedAtMs = System.currentTimeMillis(),
                             loading = false
                         )
@@ -856,16 +856,16 @@ object HomeRepository {
             }.map { it.await() }
         }
 
-        val meteredItems = items.filter { it.totalBytes > 0L }
-        val usedSum = meteredItems.sumOf { it.uploadBytes + it.downloadBytes }
-        val totalSum = meteredItems.sumOf { it.totalBytes }
-        val remainSum = (totalSum - usedSum).coerceAtLeast(0L)
-        val progress = if (totalSum > 0L) (usedSum.toDouble() / totalSum.toDouble()).toFloat().coerceIn(0f, 1f) else 0f
+        val meteredItems = items.filter { it.totalBytes > java.math.BigInteger.ZERO }
+        val usedSum = meteredItems.fold(java.math.BigInteger.ZERO) { acc, it -> acc + it.uploadBytes + it.downloadBytes }
+        val totalSum = meteredItems.fold(java.math.BigInteger.ZERO) { acc, it -> acc + it.totalBytes }
+        val remainSum = (totalSum - usedSum).max(java.math.BigInteger.ZERO)
+        val progress = if (totalSum > java.math.BigInteger.ZERO) usedSum.toBigDecimal().divide(totalSum.toBigDecimal(), 6, java.math.RoundingMode.HALF_UP).toFloat().coerceIn(0f, 1f) else 0f
 
         updateMetrics {
             val next = it.copy(
-                subscriptionCount = if (totalSum > 0L) HomeMetricsApi.formatBytes(remainSum) else "-",
-                subscriptionSubtitle = if (totalSum > 0L) {
+                subscriptionCount = if (totalSum > java.math.BigInteger.ZERO) HomeMetricsApi.formatBytes(remainSum) else "-",
+                subscriptionSubtitle = if (totalSum > java.math.BigInteger.ZERO) {
                     AppApplication.appContext.getString(
                         com.box.app.R.string.home_subscription_total,
                         HomeMetricsApi.formatBytes(totalSum)
@@ -914,7 +914,7 @@ object HomeRepository {
             val updated = cur.subscriptionItems.map {
                 if (it.url != url) return@map it
                 if (info == null) {
-                    it.copy(expiryDate = "-", uploadBytes = 0L, downloadBytes = 0L, totalBytes = 0L, lastUpdatedAtMs = updatedAt, loading = false)
+                    it.copy(expiryDate = "-", uploadBytes = java.math.BigInteger.ZERO, downloadBytes = java.math.BigInteger.ZERO, totalBytes = java.math.BigInteger.ZERO, lastUpdatedAtMs = updatedAt, loading = false)
                 } else {
                     val headerName = info.title?.trim().orEmpty().takeIf { it.isNotBlank() }
                     it.copy(
@@ -928,19 +928,19 @@ object HomeRepository {
                     )
                 }
             }
-            val meteredItems = updated.filter { it.totalBytes > 0L }
-            val usedSum = meteredItems.sumOf { it.uploadBytes + it.downloadBytes }
-            val totalSum = meteredItems.sumOf { it.totalBytes }
-            val remainSum = (totalSum - usedSum).coerceAtLeast(0L)
-            val progress = if (totalSum > 0L) (usedSum.toDouble() / totalSum.toDouble()).toFloat().coerceIn(0f, 1f) else 0f
+            val meteredItems = updated.filter { it.totalBytes > java.math.BigInteger.ZERO }
+            val usedSum = meteredItems.fold(java.math.BigInteger.ZERO) { acc, it -> acc + it.uploadBytes + it.downloadBytes }
+            val totalSum = meteredItems.fold(java.math.BigInteger.ZERO) { acc, it -> acc + it.totalBytes }
+            val remainSum = (totalSum - usedSum).max(java.math.BigInteger.ZERO)
+            val progress = if (totalSum > java.math.BigInteger.ZERO) usedSum.toBigDecimal().divide(totalSum.toBigDecimal(), 6, java.math.RoundingMode.HALF_UP).toFloat().coerceIn(0f, 1f) else 0f
             cur.copy(
                 subscriptionItems = updated,
                 subscriptionUsedBytes = usedSum,
                 subscriptionTotalBytes = totalSum,
                 subscriptionRemainBytes = remainSum,
                 subscriptionProgress = progress,
-                subscriptionCount = if (totalSum > 0L) HomeMetricsApi.formatBytes(remainSum) else "-",
-                subscriptionSubtitle = if (totalSum > 0L) {
+                subscriptionCount = if (totalSum > java.math.BigInteger.ZERO) HomeMetricsApi.formatBytes(remainSum) else "-",
+                subscriptionSubtitle = if (totalSum > java.math.BigInteger.ZERO) {
                     AppApplication.appContext.getString(
                         com.box.app.R.string.home_subscription_total,
                         HomeMetricsApi.formatBytes(totalSum)
@@ -958,8 +958,9 @@ object HomeRepository {
         if (shellWarmed) return
         shellWarmed = true
         runCatching {
-            // Prime libsu's cached shell early to reduce the first root action latency.
-            ShellExecutor.warmUpRootShell(minSessions = 1)
+            // 预热 root shell 池（默认 3 个），避免后续长命令（如模块重启）串行阻塞
+            // 日志 tail、状态查询、配置读写等路径
+            ShellExecutor.warmUpRootShell()
             ShellExecutor.execute("id -u 2>/dev/null")
         }
     }
@@ -1386,7 +1387,11 @@ object HomeRepository {
             fun toText(r: LatencyResult): String = when (r) {
                 is LatencyResult.Success -> "${r.latencyMs} ms"
                 is LatencyResult.Loading -> "..."
-                else -> "N/A"
+                is LatencyResult.Timeout -> "timeout"
+                is LatencyResult.DnsError -> "DNS"
+                is LatencyResult.Unreachable -> "down"
+                is LatencyResult.HttpError -> "HTTP ${r.code}"
+                is LatencyResult.NotAvailable -> "N/A"
             }
 
             fun toValue(r: LatencyResult): Long? = when (r) {
@@ -1480,20 +1485,16 @@ object HomeRepository {
         val nowSec = System.currentTimeMillis() / 1000
         val delta = max(0, (nowSec - startedSec).toInt())
 
-        val hours = delta / 3600
+        val days = delta / 86400
+        val hours = (delta % 86400) / 3600
         val minutes = (delta % 3600) / 60
 
+        val ctx = AppApplication.appContext
         return when {
-            hours > 0 -> AppApplication.appContext.getString(
-                com.box.app.R.string.home_uptime_hours_minutes,
-                hours,
-                minutes
-            )
-            minutes > 0 -> AppApplication.appContext.getString(
-                com.box.app.R.string.home_uptime_minutes,
-                minutes
-            )
-            else -> AppApplication.appContext.getString(com.box.app.R.string.home_uptime_less_than_minute)
+            days > 0 -> ctx.getString(com.box.app.R.string.home_uptime_days_hours, days, hours)
+            hours > 0 -> ctx.getString(com.box.app.R.string.home_uptime_hours_minutes, hours, minutes)
+            minutes > 0 -> ctx.getString(com.box.app.R.string.home_uptime_minutes, minutes)
+            else -> ctx.getString(com.box.app.R.string.home_uptime_less_than_minute)
         }
     }
 }

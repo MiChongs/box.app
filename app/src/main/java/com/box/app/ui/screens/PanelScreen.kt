@@ -816,7 +816,7 @@ fun PanelScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding().coerceAtMost(12.dp)))
+                    Spacer(modifier = Modifier.height(com.box.app.ui.components.systemNavBarBottomPadding().coerceAtMost(12.dp)))
                 }
             }
         }

@@ -729,11 +729,11 @@ fun SubscriptionBottomSheet(
             } else {
                 items.forEach { item ->
                     val used = item.uploadBytes + item.downloadBytes
-                    val remain = (item.totalBytes - used).coerceAtLeast(0L)
-                    val progress = if (item.totalBytes > 0L) {
-                        (used.toDouble() / item.totalBytes.toDouble()).toFloat().coerceIn(0f, 1f)
+                    val remain = (item.totalBytes - used).max(java.math.BigInteger.ZERO)
+                    val progress = if (item.totalBytes > java.math.BigInteger.ZERO) {
+                        used.toBigDecimal().divide(item.totalBytes.toBigDecimal(), 6, java.math.RoundingMode.HALF_UP).toFloat().coerceIn(0f, 1f)
                     } else { 0f }
-                    val remainRatio = if (item.totalBytes > 0L) (remain.toDouble() / item.totalBytes.toDouble()) else 1.0
+                    val remainRatio = if (item.totalBytes > java.math.BigInteger.ZERO) remain.toBigDecimal().divide(item.totalBytes.toBigDecimal(), 6, java.math.RoundingMode.HALF_UP).toDouble() else 1.0
                     val daysLeft = subscriptionDaysUntilExpiry(item.expiryDate)
 
                     val statusColor = when {
@@ -762,8 +762,8 @@ fun SubscriptionBottomSheet(
 @Composable
 private fun SubItemCard(
     item: SubscriptionItem,
-    used: Long,
-    remain: Long,
+    used: java.math.BigInteger,
+    remain: java.math.BigInteger,
     progress: Float,
     statusColor: Color,
     trackColor: Color,

@@ -132,11 +132,11 @@ fun SubscriptionDetailScreen(
             ) {
                 items(items, key = { it.url }) { item ->
                     val used = item.uploadBytes + item.downloadBytes
-                    val remain = (item.totalBytes - used).coerceAtLeast(0L)
-                    val progress = if (item.totalBytes > 0L) {
-                        (used.toDouble() / item.totalBytes.toDouble()).toFloat().coerceIn(0f, 1f)
+                    val remain = (item.totalBytes - used).max(java.math.BigInteger.ZERO)
+                    val progress = if (item.totalBytes > java.math.BigInteger.ZERO) {
+                        used.toBigDecimal().divide(item.totalBytes.toBigDecimal(), 6, java.math.RoundingMode.HALF_UP).toFloat().coerceIn(0f, 1f)
                     } else 0f
-                    val remainRatio = if (item.totalBytes > 0L) (remain.toDouble() / item.totalBytes.toDouble()) else 1.0
+                    val remainRatio = if (item.totalBytes > java.math.BigInteger.ZERO) remain.toBigDecimal().divide(item.totalBytes.toBigDecimal(), 6, java.math.RoundingMode.HALF_UP).toDouble() else 1.0
                     val daysLeft = daysUntilExpiry(item.expiryDate)
 
                     val statusColor = when {
@@ -167,52 +167,43 @@ fun SubscriptionDetailScreen(
 @Composable
 private fun SubCard(
     item: SubscriptionItem,
-    used: Long,
-    remain: Long,
+    used: java.math.BigInteger,
+    remain: java.math.BigInteger,
     progress: Float,
     statusColor: Color,
     trackColor: Color,
     daysLeft: Int?,
     onRefresh: () -> Unit
 ) {
+    val expiryText = humanizeExpiry(daysLeft, item.expiryDate)
+    val updateText = humanizeUpdateTime(item.lastUpdatedAtMs)
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        insideMargin = PaddingValues(0.dp)
+        cornerRadius = 20.dp,
+        insideMargin = PaddingValues(0.dp),
+        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surfaceContainer)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ── 标题区 ──
+            // ── 标题行：名称 + 刷新 ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = item.name,
-                        style = MiuixTheme.textStyles.body1,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MiuixTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    val expiryText = humanizeExpiry(daysLeft, item.expiryDate)
-                    val updateText = humanizeUpdateTime(item.lastUpdatedAtMs)
-                    Text(
-                        text = expiryText,
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = if (daysLeft != null && daysLeft < 0) statusColor else MiuixTheme.colorScheme.onSurfaceSecondary
-                    )
-                    Text(
-                        text = updateText,
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = MiuixTheme.colorScheme.onSurfaceSecondary
-                    )
-                }
+                Text(
+                    text = item.name,
+                    style = MiuixTheme.textStyles.title3,
+                    fontWeight = FontWeight.Bold,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
                 if (item.loading) {
                     InfiniteProgressIndicator(modifier = Modifier.size(20.dp))
                 } else {
@@ -232,9 +223,40 @@ private fun SubCard(
                 }
             }
 
-            // ── 用量概览：进度条 + 已用/总量 ──
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            // ── 信息行：到期 · 更新时间 ──
+            Text(
+                text = expiryText,
+                style = MiuixTheme.textStyles.body2,
+                color = if (daysLeft != null && daysLeft < 0) statusColor
+                        else MiuixTheme.colorScheme.onSurfaceSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = updateText,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            // ── 进度条 + 已用/总量 ──
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LinearProgressIndicator(
+                    progress = progress,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedRectangle(8.dp)),
+                    colors = ProgressIndicatorDefaults.progressIndicatorColors(
+                        foregroundColor = statusColor,
+                        backgroundColor = trackColor
+                    )
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = stringResource(R.string.bottomsheet_subscription_used, HomeMetricsApi.formatBytes(used)),
                         style = MiuixTheme.textStyles.footnote1,
@@ -247,17 +269,6 @@ private fun SubCard(
                         color = MiuixTheme.colorScheme.onSurfaceSecondary
                     )
                 }
-                LinearProgressIndicator(
-                    progress = progress,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedRectangle(6.dp)),
-                    colors = ProgressIndicatorDefaults.progressIndicatorColors(
-                        foregroundColor = statusColor,
-                        backgroundColor = trackColor
-                    )
-                )
             }
 
             // ── 三列流量明细 ──
@@ -295,29 +306,33 @@ private fun StatChip(
     modifier: Modifier = Modifier,
     valueColor: Color = MiuixTheme.colorScheme.onSurface
 ) {
-    Column(
-        modifier = modifier
-            .clip(RoundedRectangle(10.dp))
-            .background(MiuixTheme.colorScheme.surfaceContainerHigh)
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(1.dp)
+    Card(
+        modifier = modifier,
+        cornerRadius = 12.dp,
+        insideMargin = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surfaceContainerHigh)
     ) {
-        Text(
-            text = value,
-            style = MiuixTheme.textStyles.body2,
-            fontWeight = FontWeight.SemiBold,
-            color = valueColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center
-        )
-        Text(
-            text = label,
-            style = MiuixTheme.textStyles.footnote2,
-            color = MiuixTheme.colorScheme.onSurfaceSecondary,
-            textAlign = TextAlign.Center
-        )
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            Text(
+                text = value,
+                style = MiuixTheme.textStyles.body2,
+                fontWeight = FontWeight.SemiBold,
+                color = valueColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = label,
+                style = MiuixTheme.textStyles.footnote2,
+                color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 

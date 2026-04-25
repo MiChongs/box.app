@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <ImageView
+        android:id="@android:id/icon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/miuix_appcompat_spinner_dropdown_item_icon_margin"
+        android:minWidth="@dimen/miuix_appcompat_drop_down_item_icon_width"
+        android:minHeight="@dimen/miuix_appcompat_drop_down_item_icon_height" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.0"
+        android:orientation="vertical">
+
+        <fan.androidbase.widget.CheckedTextView
+            android:id="@android:id/title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.List"
+            android:textSize="@dimen/miuix_appcompat_spinner_double_line_title_size" />
+
+        <fan.androidbase.widget.CheckedTextView
+            android:id="@android:id/summary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/miuix_appcompat_spinner_dropdown_item_text_margin"
+            android:textAppearance="@style/TextAppearance.List.Secondary"
+            android:textSize="@dimen/miuix_appcompat_spinner_double_line_summary_size" />
+    </LinearLayout>
+</LinearLayout>

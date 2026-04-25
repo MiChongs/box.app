@@ -5,6 +5,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,18 +14,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
@@ -47,6 +48,8 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,6 +59,8 @@ import com.box.app.data.backend.BoxApi
 import com.box.app.data.backend.HomeMetricsApi
 import com.box.app.data.repo.HomeRepository
 import com.box.app.ui.components.contentPaddingWithNavBars
+import com.box.app.ui.miuix.HyperBottomSheet
+import com.box.app.ui.miuix.HyperFilterChip
 import com.kyant.shapes.RoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -65,11 +70,19 @@ import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.InputField
+import top.yukonga.miuix.kmp.basic.SearchBar
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private enum class ConnFilter { Active, Closed }
+private enum class ConnSort { Traffic, Time, Host }
 
 @Composable
 fun NetSpeedScreen(onBack: () -> Unit) {
@@ -82,68 +95,105 @@ fun NetSpeedScreen(onBack: () -> Unit) {
     val upColor = MiuixTheme.colorScheme.primary
 
     // 连接列表
-    var allConnections by remember { mutableStateOf<List<BoxApi.ConnectionInfo>>(emptyList()) }
-    var closedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var activeConnections by remember { mutableStateOf<List<BoxApi.ConnectionInfo>>(emptyList()) }
+    var closedConnections by remember { mutableStateOf<List<BoxApi.ConnectionInfo>>(emptyList()) }
     var filter by remember { mutableStateOf(ConnFilter.Active) }
-    var refreshTick by remember { mutableIntStateOf(0) }
+    var searchQuery by remember { mutableStateOf("") }
+    var sortOrder by remember { mutableStateOf(ConnSort.Traffic) }
+    // API 返回的全局累计流量（含已关闭连接）
+    var globalDownloadTotal by remember { mutableStateOf(0L) }
+    var globalUploadTotal by remember { mutableStateOf(0L) }
+    var processMemory by remember { mutableStateOf(0L) }
+    // 连接详情 BottomSheet
+    var detailConn by remember { mutableStateOf<BoxApi.ConnectionInfo?>(null) }
 
     // 定时刷新连接
     LaunchedEffect(Unit) {
         while (isActive) {
-            val conns = BoxApi.getAllConnections()
-            val currentIds = conns.map { it.id }.toSet()
-            // 之前存在但现在不在的 → 已关闭
-            val prevIds = allConnections.map { it.id }.toSet()
-            closedIds = closedIds + (prevIds - currentIds)
-            allConnections = conns
-            refreshTick++
+            val snapshot = BoxApi.getAllConnections()
+            globalDownloadTotal = snapshot.downloadTotal
+            globalUploadTotal = snapshot.uploadTotal
+            processMemory = snapshot.memory
+            val currentIds = snapshot.connections.map { it.id }.toSet()
+            // 检测已关闭的连接：之前活跃但现在不在列表中的
+            val prevMap = activeConnections.associateBy { it.id }
+            val newlyClosed = prevMap.filterKeys { it !in currentIds }.values.map {
+                it.copy(isAlive = false)
+            }
+            if (newlyClosed.isNotEmpty()) {
+                closedConnections = newlyClosed + closedConnections
+            }
+            activeConnections = snapshot.connections
             delay(2000)
         }
     }
 
-    val displayConnections = remember(allConnections, closedIds, filter) {
-        when (filter) {
-            ConnFilter.Active -> allConnections
-            ConnFilter.Closed -> {
-                // 从历史中找已关闭的（不在当前活跃列表中的）
-                emptyList() // 已关闭的连接无法从 API 获取详情，仅显示 ID
-            }
+    // 搜索 + 排序
+    val displayConnections = remember(activeConnections, closedConnections, filter, searchQuery, sortOrder) {
+        val base = when (filter) {
+            ConnFilter.Active -> activeConnections
+            ConnFilter.Closed -> closedConnections
+        }
+        val filtered = if (searchQuery.isBlank()) base else base.filter {
+            it.host.contains(searchQuery, ignoreCase = true) ||
+                    it.destinationIP.contains(searchQuery, ignoreCase = true) ||
+                    it.process.contains(searchQuery, ignoreCase = true)
+        }
+        when (sortOrder) {
+            ConnSort.Traffic -> filtered.sortedByDescending { it.download + it.upload }
+            ConnSort.Time -> filtered.sortedByDescending { it.start }
+            ConnSort.Host -> filtered.sortedBy { (it.host.ifBlank { it.destinationIP }).lowercase() }
         }
     }
 
-    val activeCount = allConnections.size
-    val closedCount = closedIds.size
+    val activeCount = activeConnections.size
+    val closedCount = closedConnections.size
 
     val scrollBehavior = MiuixScrollBehavior()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.statusBars)
-    ) {
-        TopAppBar(
-            title = stringResource(R.string.bottomsheet_net_speed_title),
-            scrollBehavior = scrollBehavior,
-            navigationIcon = {
-                IconButton(
-                    onClick = onBack,
-                    backgroundColor = Color.Transparent,
-                    cornerRadius = 16.dp
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(22.dp)
-                    )
+    Scaffold(
+        topBar = {
+            SmallTopAppBar(
+                title = stringResource(R.string.bottomsheet_net_speed_title),
+                scrollBehavior = scrollBehavior,
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = MiuixIcons.Back,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.onBackground
+                        )
+                    }
+                },
+                actions = {
+                    if (metrics.useClashApiForNetSpeed && activeConnections.isNotEmpty()) {
+                        IconButton(onClick = {
+                            scope.launch {
+                                // 将所有活跃连接移入已关闭列表
+                                closedConnections = activeConnections.map { it.copy(isAlive = false) } + closedConnections
+                                activeConnections = emptyList()
+                                BoxApi.closeAllConnections()
+                            }
+                        }) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.net_speed_close_all),
+                                tint = MiuixTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
                 }
-            }
-        )
-
+            )
+        }
+    ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(scrollBehavior.nestedScrollConnection),
             contentPadding = contentPaddingWithNavBars(
-                start = 16.dp, end = 16.dp, top = 8.dp, extraBottom = 16.dp
+                start = 12.dp, end = 12.dp,
+                top = innerPadding.calculateTopPadding(),
+                extraBottom = 16.dp
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -191,38 +241,242 @@ fun NetSpeedScreen(onBack: () -> Unit) {
                             upSeries = metrics.netUpHistory,
                             downColor = downColor,
                             upColor = upColor,
-                            modifier = Modifier.fillMaxWidth().height(120.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp)
                         )
                     }
                 }
             }
 
-            // 连接筛选标签
+            // 总流量
             if (metrics.useClashApiForNetSpeed) {
+                item(key = "total_traffic") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 18.dp,
+                        insideMargin = PaddingValues(14.dp),
+                        colors = CardDefaults.defaultColors()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.net_speed_total_traffic),
+                                style = MiuixTheme.textStyles.body1,
+                                fontWeight = FontWeight.Medium,
+                                color = MiuixTheme.colorScheme.onSurface
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.ArrowDownward,
+                                        contentDescription = null,
+                                        tint = downColor,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = HomeMetricsApi.formatBytes(globalDownloadTotal),
+                                        style = MiuixTheme.textStyles.body2,
+                                        color = downColor
+                                    )
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.ArrowUpward,
+                                        contentDescription = null,
+                                        tint = upColor,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = HomeMetricsApi.formatBytes(globalUploadTotal),
+                                        style = MiuixTheme.textStyles.body2,
+                                        color = upColor
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 最快连接
+                if (metrics.netFastestDownSpeed != "-" || metrics.netFastestUpSpeed != "-") {
+                    item(key = "fastest_connections") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                cornerRadius = 16.dp,
+                                insideMargin = PaddingValues(12.dp),
+                                colors = CardDefaults.defaultColors()
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        text = stringResource(R.string.net_speed_fastest_down),
+                                        style = MiuixTheme.textStyles.footnote1,
+                                        color = downColor,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = metrics.netFastestDownSpeed,
+                                        style = MiuixTheme.textStyles.body1,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = downColor
+                                    )
+                                    Text(
+                                        text = metrics.netFastestDownHost,
+                                        style = MiuixTheme.textStyles.footnote2,
+                                        color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                cornerRadius = 16.dp,
+                                insideMargin = PaddingValues(12.dp),
+                                colors = CardDefaults.defaultColors()
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        text = stringResource(R.string.net_speed_fastest_up),
+                                        style = MiuixTheme.textStyles.footnote1,
+                                        color = upColor,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = metrics.netFastestUpSpeed,
+                                        style = MiuixTheme.textStyles.body1,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = upColor
+                                    )
+                                    Text(
+                                        text = metrics.netFastestUpHost,
+                                        style = MiuixTheme.textStyles.footnote2,
+                                        color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 搜索栏
+                item(key = "search") {
+                    var searchExpanded by remember { mutableStateOf(false) }
+                    SearchBar(
+                        modifier = Modifier.fillMaxWidth(),
+                        inputField = {
+                            InputField(
+                                query = searchQuery,
+                                onQueryChange = { searchQuery = it },
+                                onSearch = { searchExpanded = false },
+                                expanded = searchExpanded,
+                                onExpandedChange = { searchExpanded = it },
+                                label = stringResource(R.string.net_speed_search_hint)
+                            )
+                        },
+                        expanded = searchExpanded,
+                        onExpandedChange = { searchExpanded = it }
+                    ) {
+                        // 搜索建议：匹配的主机名
+                        if (searchQuery.isNotBlank()) {
+                            val allHosts = activeConnections
+                                .map { conn -> conn.host.ifBlank { conn.destinationIP } }
+                                .distinct()
+                                .filter { h -> h.contains(searchQuery, ignoreCase = true) }
+                                .take(5)
+                            Column {
+                                allHosts.forEach { host ->
+                                    Text(
+                                        text = host,
+                                        style = MiuixTheme.textStyles.body2,
+                                        color = MiuixTheme.colorScheme.onSurface,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                searchQuery = host
+                                                searchExpanded = false
+                                            }
+                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 排序选项
+                item(key = "sort_options") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HyperFilterChip(
+                            selected = sortOrder == ConnSort.Traffic,
+                            onClick = { sortOrder = ConnSort.Traffic },
+                            label = stringResource(R.string.net_speed_sort_traffic)
+                        )
+                        HyperFilterChip(
+                            selected = sortOrder == ConnSort.Time,
+                            onClick = { sortOrder = ConnSort.Time },
+                            label = stringResource(R.string.net_speed_sort_time)
+                        )
+                        HyperFilterChip(
+                            selected = sortOrder == ConnSort.Host,
+                            onClick = { sortOrder = ConnSort.Host },
+                            label = stringResource(R.string.net_speed_sort_host)
+                        )
+                    }
+                }
+
+                // 连接筛选标签
                 item(key = "conn_filter") {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        FilterChip(
-                            text = "Active ($activeCount)",
+                        HyperFilterChip(
                             selected = filter == ConnFilter.Active,
-                            onClick = { filter = ConnFilter.Active }
+                            onClick = { filter = ConnFilter.Active },
+                            label = "${stringResource(R.string.net_speed_active)} ($activeCount)"
                         )
-                        FilterChip(
-                            text = "Closed ($closedCount)",
+                        HyperFilterChip(
                             selected = filter == ConnFilter.Closed,
-                            onClick = { filter = ConnFilter.Closed }
+                            onClick = { filter = ConnFilter.Closed },
+                            label = "${stringResource(R.string.net_speed_closed)} ($closedCount)"
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            text = stringResource(R.string.net_speed_connections, activeCount),
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = MiuixTheme.colorScheme.onSurfaceSecondary
                         )
                     }
                 }
 
                 if (filter == ConnFilter.Active) {
-                    if (allConnections.isEmpty()) {
+                    if (displayConnections.isEmpty()) {
                         item(key = "conn_empty") {
                             Text(
-                                text = "No active connections",
+                                text = stringResource(R.string.net_speed_no_active_connections),
                                 style = MiuixTheme.textStyles.body2,
                                 color = MiuixTheme.colorScheme.onSurfaceSecondary,
                                 modifier = Modifier.padding(vertical = 20.dp)
@@ -230,64 +484,547 @@ fun NetSpeedScreen(onBack: () -> Unit) {
                         }
                     } else {
                         items(
-                            items = allConnections,
+                            items = displayConnections,
                             key = { it.id }
                         ) { conn ->
                             ConnectionCard(
                                 conn = conn,
                                 downColor = downColor,
                                 upColor = upColor,
+                                onClick = { detailConn = conn },
                                 onClose = {
                                     scope.launch {
+                                        // 移入已关闭列表
+                                        closedConnections = listOf(conn.copy(isAlive = false)) + closedConnections
+                                        activeConnections = activeConnections.filter { it.id != conn.id }
                                         BoxApi.closeConnection(conn.id)
-                                        closedIds = closedIds + conn.id
-                                        allConnections = allConnections.filter { it.id != conn.id }
                                     }
                                 }
                             )
                         }
                     }
                 } else {
-                    item(key = "closed_hint") {
-                        Text(
-                            text = if (closedCount > 0) {
-                                "$closedCount connections closed this session"
-                            } else {
-                                "No closed connections"
-                            },
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceSecondary,
-                            modifier = Modifier.padding(vertical = 20.dp)
-                        )
+                    if (displayConnections.isEmpty()) {
+                        item(key = "closed_empty") {
+                            Text(
+                                text = stringResource(R.string.net_speed_no_closed_connections),
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                                modifier = Modifier.padding(vertical = 20.dp)
+                            )
+                        }
+                    } else {
+                        items(
+                            items = displayConnections,
+                            key = { "closed_${it.id}" }
+                        ) { conn ->
+                            ConnectionCard(
+                                conn = conn,
+                                downColor = downColor,
+                                upColor = upColor,
+                                onClick = { detailConn = conn },
+                                onClose = null
+                            )
+                        }
                     }
                 }
             }
         }
     }
+
+    // 连接详情 BottomSheet
+    ConnectionDetailSheet(
+        conn = detailConn,
+        downColor = downColor,
+        upColor = upColor,
+        onDismiss = { detailConn = null }
+    )
 }
 
-@Composable
-private fun FilterChip(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    val bg = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.secondaryContainer
-    val fg = if (selected) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSecondaryContainer
+// ═══════════════════════════════════════════════════════════════════════════
+// 连接详情 BottomSheet
+// ═══════════════════════════════════════════════════════════════════════════
 
-    Card(
-        modifier = Modifier,
-        cornerRadius = 20.dp,
-        insideMargin = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-        colors = CardDefaults.defaultColors(color = bg),
-        onClick = onClick
+private enum class DetailMode { Visual, Raw }
+
+@Composable
+private fun ConnectionDetailSheet(
+    conn: BoxApi.ConnectionInfo?,
+    downColor: Color,
+    upColor: Color,
+    onDismiss: () -> Unit
+) {
+    HyperBottomSheet(
+        show = conn != null,
+        onDismissRequest = onDismiss,
+        title = conn?.host?.ifBlank { conn.destinationIP } ?: ""
     ) {
-        Text(
-            text = text,
-            style = MiuixTheme.textStyles.footnote1,
-            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-            color = fg
+        val c = conn ?: return@HyperBottomSheet
+        var mode by remember { mutableStateOf(DetailMode.Visual) }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // 状态指示
+            val statusColor = if (c.isAlive) downColor else MiuixTheme.colorScheme.onSurfaceSecondary
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(RoundedRectangle(4.dp))
+                        .background(statusColor)
+                )
+                Text(
+                    text = if (c.isAlive) stringResource(R.string.net_speed_detail_status_active)
+                    else stringResource(R.string.net_speed_detail_status_closed),
+                    style = MiuixTheme.textStyles.footnote1,
+                    fontWeight = FontWeight.Medium,
+                    color = statusColor
+                )
+            }
+
+            // 模式切换
+            TabRowWithContour(
+                tabs = listOf(
+                    stringResource(R.string.net_speed_detail_visual),
+                    stringResource(R.string.net_speed_detail_raw)
+                ),
+                selectedTabIndex = if (mode == DetailMode.Visual) 0 else 1,
+                onTabSelected = { mode = if (it == 0) DetailMode.Visual else DetailMode.Raw }
+            )
+
+            if (mode == DetailMode.Visual) {
+                DetailVisualContent(c, downColor, upColor)
+            } else {
+                DetailRawContent(c)
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+    }
+}
+
+// ── 可视化视图 ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun DetailVisualContent(
+    conn: BoxApi.ConnectionInfo,
+    downColor: Color,
+    upColor: Color
+) {
+    // 流量卡片
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Card(
+            modifier = Modifier.weight(1f),
+            cornerRadius = 16.dp,
+            insideMargin = PaddingValues(14.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ArrowDownward,
+                        contentDescription = null,
+                        tint = downColor,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.net_speed_detail_download),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceSecondary
+                    )
+                }
+                Text(
+                    text = HomeMetricsApi.formatBytes(conn.download),
+                    style = MiuixTheme.textStyles.title3,
+                    fontWeight = FontWeight.SemiBold,
+                    color = downColor
+                )
+            }
+        }
+        Card(
+            modifier = Modifier.weight(1f),
+            cornerRadius = 16.dp,
+            insideMargin = PaddingValues(14.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ArrowUpward,
+                        contentDescription = null,
+                        tint = upColor,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.net_speed_detail_upload),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceSecondary
+                    )
+                }
+                Text(
+                    text = HomeMetricsApi.formatBytes(conn.upload),
+                    style = MiuixTheme.textStyles.title3,
+                    fontWeight = FontWeight.SemiBold,
+                    color = upColor
+                )
+            }
+        }
+    }
+
+    // 代理链可视化
+    if (conn.chains.isNotEmpty()) {
+        SmallTitle(
+            text = stringResource(R.string.net_speed_detail_chains),
+            modifier = Modifier.padding(top = 4.dp)
         )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            cornerRadius = 16.dp,
+            insideMargin = PaddingValues(16.dp)
+        ) {
+            ProxyChainVisual(
+                chains = conn.chains.reversed(),
+                host = conn.host.ifBlank { conn.destinationIP },
+                accentColor = MiuixTheme.colorScheme.primary
+            )
+        }
+    }
+
+    // 连接详情
+    SmallTitle(
+        text = stringResource(R.string.bottomsheet_net_speed_details),
+        modifier = Modifier.padding(top = 4.dp)
+    )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 16.dp,
+        insideMargin = PaddingValues(16.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            if (conn.host.isNotBlank()) {
+                DetailInfoItem(stringResource(R.string.net_speed_detail_host), conn.host)
+            }
+            DetailInfoItem(
+                stringResource(R.string.net_speed_detail_destination),
+                "${conn.destinationIP}:${conn.destinationPort}"
+            )
+            if (conn.sourceIP.isNotBlank()) {
+                DetailInfoItem(
+                    stringResource(R.string.net_speed_detail_source),
+                    "${conn.sourceIP}:${conn.sourcePort}"
+                )
+            }
+            DetailInfoItem(stringResource(R.string.net_speed_detail_network), conn.network.uppercase())
+            if (conn.type.isNotBlank()) {
+                DetailInfoItem(stringResource(R.string.net_speed_detail_type), conn.type)
+            }
+            if (conn.rule.isNotBlank()) {
+                DetailInfoItem(
+                    stringResource(R.string.net_speed_detail_rule),
+                    conn.rule + if (conn.rulePayload.isNotBlank()) " (${conn.rulePayload})" else ""
+                )
+            }
+            if (conn.destinationGeoIP.isNotBlank()) {
+                DetailInfoItem(stringResource(R.string.net_speed_detail_geo), conn.destinationGeoIP)
+            }
+            if (conn.process.isNotBlank()) {
+                DetailInfoItem(stringResource(R.string.net_speed_detail_process), conn.process)
+            }
+            if (conn.sniffHost.isNotBlank() && conn.sniffHost != conn.host) {
+                DetailInfoItem(stringResource(R.string.net_speed_detail_sniff_host), conn.sniffHost)
+            }
+            if (conn.start.isNotBlank()) {
+                DetailInfoItem(
+                    stringResource(R.string.net_speed_detail_start),
+                    formatStartTime(conn.start),
+                    showDivider = false
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 代理链可视化：竖向时间轴，圆点与节点文字垂直居中对齐。
+ *
+ * 布局结构（每个节点）：
+ *   ┌─ 上段连线（首节点无）
+ *   ● ── 节点内容（pill 样式）
+ *   └─ 下段连线（末节点无）
+ */
+@Composable
+private fun ProxyChainVisual(
+    chains: List<String>,
+    host: String,
+    accentColor: Color
+) {
+    val lineColor = accentColor.copy(alpha = 0.18f)
+    val dotSize = 10.dp
+    val railWidth = 32.dp
+    val lineWidth = 1.5.dp
+    // 节点 pill 高度（用于计算连线段长）
+    val nodeHeight = 36.dp
+    val gapBetween = 6.dp
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        chains.forEachIndexed { index, node ->
+            val isFirst = index == 0
+            val isLast = index == chains.lastIndex
+
+            // 上段连线（首节点无）
+            if (!isFirst) {
+                Box(
+                    modifier = Modifier
+                        .padding(start = (railWidth - lineWidth) / 2)
+                        .width(lineWidth)
+                        .height(gapBetween)
+                        .background(lineColor)
+                )
+            }
+
+            // 节点行：圆点 + pill
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 圆点列
+                Box(
+                    modifier = Modifier.width(railWidth),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // 外圈光晕（首尾节点）
+                    if (isFirst || isLast) {
+                        Box(
+                            modifier = Modifier
+                                .size(dotSize + 6.dp)
+                                .clip(RoundedRectangle((dotSize + 6.dp) / 2))
+                                .background(accentColor.copy(alpha = 0.12f))
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(dotSize)
+                            .clip(RoundedRectangle(dotSize / 2))
+                            .background(
+                                if (isFirst || isLast) accentColor
+                                else accentColor.copy(alpha = 0.45f)
+                            )
+                    )
+                }
+
+                // 节点 pill
+                val pillBg = when {
+                    isFirst || isLast -> accentColor.copy(alpha = 0.10f)
+                    else -> MiuixTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                }
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(nodeHeight)
+                        .clip(RoundedRectangle(10.dp))
+                        .background(pillBg)
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = node,
+                        style = MiuixTheme.textStyles.body2,
+                        fontWeight = FontWeight.Medium,
+                        color = if (isFirst || isLast) accentColor
+                        else MiuixTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    // 角色标签
+                    val roleText = when {
+                        isFirst -> "Entry"
+                        isLast -> "Exit"
+                        else -> null
+                    }
+                    if (roleText != null) {
+                        Text(
+                            text = roleText,
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = if (isFirst || isLast) accentColor.copy(alpha = 0.6f)
+                            else MiuixTheme.colorScheme.onSurfaceSecondary,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // 目标主机行
+        Box(
+            modifier = Modifier
+                .padding(start = (railWidth - lineWidth) / 2)
+                .width(lineWidth)
+                .height(gapBetween)
+                .background(lineColor)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 箭头圆点
+            Box(
+                modifier = Modifier.width(railWidth),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(dotSize + 6.dp)
+                        .clip(RoundedRectangle((dotSize + 6.dp) / 2))
+                        .background(accentColor.copy(alpha = 0.12f))
+                )
+                Box(
+                    modifier = Modifier
+                        .size(dotSize)
+                        .clip(RoundedRectangle(dotSize / 2))
+                        .background(accentColor)
+                )
+            }
+            // 目标 pill
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(nodeHeight)
+                    .clip(RoundedRectangle(10.dp))
+                    .background(accentColor.copy(alpha = 0.10f))
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = host,
+                    style = MiuixTheme.textStyles.body2,
+                    fontWeight = FontWeight.Medium,
+                    color = accentColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                Text(
+                    text = "Target",
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = accentColor.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+// ── 原始数据视图 ────────────────────────────────────────────────────────────
+
+@Composable
+private fun DetailRawContent(conn: BoxApi.ConnectionInfo) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 16.dp,
+        insideMargin = PaddingValues(16.dp)
+    ) {
+        val rawText = buildString {
+            appendLine("id: ${conn.id}")
+            appendLine("host: ${conn.host}")
+            if (conn.sniffHost.isNotBlank()) appendLine("sniffHost: ${conn.sniffHost}")
+            appendLine("destinationIP: ${conn.destinationIP}")
+            appendLine("destinationPort: ${conn.destinationPort}")
+            if (conn.sourceIP.isNotBlank()) appendLine("sourceIP: ${conn.sourceIP}")
+            if (conn.sourcePort.isNotBlank()) appendLine("sourcePort: ${conn.sourcePort}")
+            appendLine("network: ${conn.network}")
+            appendLine("type: ${conn.type}")
+            appendLine("rule: ${conn.rule}")
+            if (conn.rulePayload.isNotBlank()) appendLine("rulePayload: ${conn.rulePayload}")
+            appendLine("chains: ${conn.chains.joinToString(" \u2192 ")}")
+            appendLine("download: ${conn.download} (${HomeMetricsApi.formatBytes(conn.download)})")
+            appendLine("upload: ${conn.upload} (${HomeMetricsApi.formatBytes(conn.upload)})")
+            appendLine("start: ${conn.start}")
+            if (conn.process.isNotBlank()) appendLine("process: ${conn.process}")
+            if (conn.processPath.isNotBlank()) appendLine("processPath: ${conn.processPath}")
+            if (conn.destinationGeoIP.isNotBlank()) appendLine("destinationGeoIP: ${conn.destinationGeoIP}")
+            append("isAlive: ${conn.isAlive}")
+        }
+        Text(
+            text = rawText,
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+        )
+    }
+}
+
+// ── 详情组件 ────────────────────────────────────────────────────────────────
+
+/** 信息行：label + value，带分割线 */
+@Composable
+private fun DetailInfoItem(
+    label: String,
+    value: String,
+    showDivider: Boolean = true
+) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            Text(
+                text = label,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceSecondary
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = value,
+                style = MiuixTheme.textStyles.body2,
+                fontWeight = FontWeight.Medium,
+                color = MiuixTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+                textAlign = androidx.compose.ui.text.style.TextAlign.End
+            )
+        }
+        if (showDivider) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(0.5.dp)
+                    .background(MiuixTheme.colorScheme.dividerLine.copy(alpha = 0.08f))
+            )
+        }
+    }
+}
+
+/** 格式化 ISO 8601 时间 */
+private fun formatStartTime(isoTime: String): String {
+    return try {
+        val t = isoTime.substringBefore(".")
+        t.replace("T", " ")
+    } catch (_: Exception) {
+        isoTime
     }
 }
 
@@ -296,18 +1033,25 @@ private fun ConnectionCard(
     conn: BoxApi.ConnectionInfo,
     downColor: Color,
     upColor: Color,
-    onClose: () -> Unit
+    onClick: (() -> Unit)? = null,
+    onClose: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = 16.dp,
         insideMargin = PaddingValues(0.dp),
-        colors = CardDefaults.defaultColors()
+        colors = CardDefaults.defaultColors(),
+        onClick = onClick
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp)
+                .padding(
+                    start = 14.dp,
+                    end = if (onClose != null) 8.dp else 14.dp,
+                    top = 12.dp,
+                    bottom = 12.dp
+                )
         ) {
             // 主机 + 关闭按钮
             Row(
@@ -318,27 +1062,30 @@ private fun ConnectionCard(
                     text = conn.host.ifBlank { conn.destinationIP },
                     style = MiuixTheme.textStyles.body1,
                     fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface,
+                    color = if (conn.isAlive) MiuixTheme.colorScheme.onSurface
+                    else MiuixTheme.colorScheme.onSurfaceSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier.size(32.dp),
-                    backgroundColor = Color.Transparent,
-                    cornerRadius = 10.dp
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.onSurfaceSecondary,
-                        modifier = Modifier.size(14.dp)
-                    )
+                if (onClose != null) {
+                    IconButton(
+                        onClick = onClose,
+                        modifier = Modifier.size(32.dp),
+                        backgroundColor = Color.Transparent,
+                        cornerRadius = 10.dp
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.onSurfaceSecondary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                 }
             }
 
-            // 网络 + 规则
+            // 网络 + 规则 + GeoIP
             Row(
                 modifier = Modifier.padding(end = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -351,6 +1098,9 @@ private fun ConnectionCard(
                 }
                 if (conn.rule.isNotBlank()) {
                     ConnInfoTag(conn.rule + if (conn.rulePayload.isNotBlank()) "(${conn.rulePayload})" else "")
+                }
+                if (conn.destinationGeoIP.isNotBlank()) {
+                    ConnInfoTag(conn.destinationGeoIP)
                 }
             }
 
@@ -398,12 +1148,24 @@ private fun ConnectionCard(
             // 链路
             if (conn.chains.isNotEmpty()) {
                 Text(
-                    text = conn.chains.reversed().joinToString(" → "),
+                    text = conn.chains.reversed().joinToString(" \u2192 "),
                     style = MiuixTheme.textStyles.footnote2,
                     color = MiuixTheme.colorScheme.onSurfaceSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 4.dp, end = 6.dp)
+                )
+            }
+
+            // 进程信息
+            if (conn.process.isNotBlank()) {
+                Text(
+                    text = conn.process,
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp, end = 6.dp)
                 )
             }
         }
@@ -504,14 +1266,14 @@ private fun ChartLegendItem(
 }
 
 /**
- * 无缝滚动速度图表。
+ * 无缝滚动速度图表（优化版）。
  *
- * 原理：用 withFrameMillis 持续驱动渲染（60+fps），基于「距上次数据推入的时间」
- * 计算水平偏移量。新数据到来时执行 array shift + reset timer，数学上偏移量
- * 在推入前后完全连续（shift前 t≈1 偏移=step，shift后 t=0 偏移=0，但数组
- * 整体左移了一格，视觉位置不变）。
- *
- * Y 轴缩放使用 Animatable 平滑过渡，避免 maxValue 突变导致全部跳变。
+ * 设计要点：
+ * 1. 帧驱动：withFrameMillis 持续渲染，基于帧时间戳计算水平偏移
+ * 2. 无缝推入：新数据到来时 array shift + reset timer，shift 前后偏移量数学连续
+ * 3. Y 轴缩放：向上 tween 平滑过渡，向下即时 snap 防止曲线溢出
+ * 4. Tip 动画：最新点从旧值 spring 过渡到新值，保证末端平滑
+ * 5. 对象复用：Path/PathEffect 缓存，避免每帧分配
  */
 @Composable
 private fun AnimatedSpeedChart(
@@ -524,82 +1286,110 @@ private fun AnimatedSpeedChart(
     val slots = 30
     val dataIntervalMs = 2000f
 
-    // 原始值环形缓冲（不标准化，保留原始 bytes/s）
-    val downBuf = remember { FloatArray(slots + 1) }
-    val upBuf = remember { FloatArray(slots + 1) }
+    // ── 状态 ──
+    val downBuf = remember { FloatArray(slots) }
+    val upBuf = remember { FloatArray(slots) }
     var bufLen by remember { mutableIntStateOf(0) }
-    var lastPushMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    var lastPushNanos by remember { mutableStateOf(0L) }
+    var pushCount by remember { mutableIntStateOf(0) }  // 单调递增，可靠触发 LaunchedEffect
     var initialized by remember { mutableStateOf(false) }
 
-    // 动画 Y 轴最大值，避免缩放跳变
+    // Y 轴最大值动画
     val animMaxV = remember { Animatable(1f) }
-    // 最新点高度动画：从旧值平滑过渡到新值
+    // 最新数据点高度动画
     val tipDown = remember { Animatable(0f) }
     val tipUp = remember { Animatable(0f) }
 
-    // 帧时钟：持续驱动 Canvas 重绘
-    var frameMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    // 帧时钟（纳秒），withFrameMillis 直接提供帧时间戳
+    var frameNanos by remember { mutableStateOf(System.nanoTime()) }
     LaunchedEffect(Unit) {
         while (isActive) {
-            withFrameMillis { frameMs = System.currentTimeMillis() }
+            withFrameMillis { frameNanos = System.nanoTime() }
         }
     }
 
-    // 数据推入
-    LaunchedEffect(downSeries.size, downSeries.lastOrNull(), upSeries.lastOrNull()) {
+    // ── Buffer 最大值扫描（零分配） ──
+    fun bufMax(buf: FloatArray, len: Int): Float {
+        var m = 0f
+        for (i in 0 until len) { if (buf[i] > m) m = buf[i] }
+        return m
+    }
+
+    // ── 数据推入（用 pushCount 作为可靠 key） ──
+    val dSize = downSeries.size
+    val uSize = upSeries.size
+    LaunchedEffect(dSize, uSize) {
+        if (dSize == 0 && uSize == 0) return@LaunchedEffect
+
         if (!initialized) {
-            val dPad = if (downSeries.size >= slots) downSeries.takeLast(slots)
-            else List(slots - downSeries.size) { 0f } + downSeries
-            val uPad = if (upSeries.size >= slots) upSeries.takeLast(slots)
-            else List(slots - upSeries.size) { 0f } + upSeries
+            // 首次：填充整个 buffer
+            val dPad = if (dSize >= slots) downSeries.takeLast(slots)
+            else List(slots - dSize) { 0f } + downSeries
+            val uPad = if (uSize >= slots) upSeries.takeLast(slots)
+            else List(slots - uSize) { 0f } + upSeries
             for (i in 0 until slots) {
                 downBuf[i] = dPad[i]
                 upBuf[i] = uPad[i]
             }
             bufLen = slots
-            val maxV = (dPad + uPad).maxOrNull()?.coerceAtLeast(1f) ?: 1f
+            val maxV = maxOf(bufMax(downBuf, slots), bufMax(upBuf, slots)).coerceAtLeast(1f)
             animMaxV.snapTo(maxV)
             tipDown.snapTo(downBuf[slots - 1])
             tipUp.snapTo(upBuf[slots - 1])
             initialized = true
-            lastPushMs = System.currentTimeMillis()
+            lastPushNanos = System.nanoTime()
+            pushCount++
             return@LaunchedEffect
         }
 
         val newD = downSeries.lastOrNull() ?: 0f
         val newU = upSeries.lastOrNull() ?: 0f
 
-        // 左移一格，倒数第二格填入当前 tip 动画值（确保连续）
+        // 左移一格，末位填入当前 tip 动画值确保视觉连续
         for (i in 0 until bufLen - 1) {
             downBuf[i] = downBuf[i + 1]
             upBuf[i] = upBuf[i + 1]
         }
-        // 最后一格暂存当前动画值作为绘制回退
         downBuf[bufLen - 1] = tipDown.value
         upBuf[bufLen - 1] = tipUp.value
 
-        lastPushMs = System.currentTimeMillis()
+        lastPushNanos = System.nanoTime()
+        pushCount++
 
-        // tip 从当前值动画到新值
-        launch { tipDown.animateTo(newD, spring(dampingRatio = 0.82f, stiffness = 300f)) }
-        launch { tipUp.animateTo(newU, spring(dampingRatio = 0.82f, stiffness = 300f)) }
+        // Tip 弹簧动画过渡到新值
+        launch { tipDown.animateTo(newD, spring(dampingRatio = 0.75f, stiffness = 200f)) }
+        launch { tipUp.animateTo(newU, spring(dampingRatio = 0.75f, stiffness = 200f)) }
 
-        // 平滑更新 Y 轴缩放
-        val rawMax = maxOf(
-            downBuf.take(bufLen).maxOrNull() ?: 0f,
-            upBuf.take(bufLen).maxOrNull() ?: 0f,
-            newD, newU
-        ).coerceAtLeast(1f)
-        launch { animMaxV.animateTo(rawMax, androidx.compose.animation.core.tween(600)) }
+        // Y 轴最大值：加 20% headroom 防止曲线贴顶
+        val rawMax = maxOf(bufMax(downBuf, bufLen), bufMax(upBuf, bufLen), newD, newU)
+        val targetMax = (rawMax * 1.2f).coerceAtLeast(1f)
+        if (targetMax > animMaxV.value) {
+            // 上升：tween 平滑过渡
+            launch { animMaxV.animateTo(targetMax, androidx.compose.animation.core.tween(500)) }
+        } else if (targetMax < animMaxV.value * 0.6f) {
+            // 明显下降（低于当前 60%）：快速收缩，防止曲线缩成一条线
+            launch { animMaxV.animateTo(targetMax, androidx.compose.animation.core.tween(300)) }
+        }
     }
 
-    val downGrad = listOf(downColor.copy(alpha = 0.22f), downColor.copy(alpha = 0f))
-    val upGrad = listOf(upColor.copy(alpha = 0.22f), upColor.copy(alpha = 0f))
-    val gridColor = MiuixTheme.colorScheme.onSurfaceSecondary.copy(alpha = 0.12f)
+    // ── 预计算颜色 / 样式 ──
+    val downGrad = remember(downColor) {
+        listOf(downColor.copy(alpha = 0.22f), downColor.copy(alpha = 0f))
+    }
+    val upGrad = remember(upColor) {
+        listOf(upColor.copy(alpha = 0.22f), upColor.copy(alpha = 0f))
+    }
+    val gridColor = MiuixTheme.colorScheme.onSurfaceSecondary.copy(alpha = 0.10f)
+    val dashEffect = remember { PathEffect.dashPathEffect(floatArrayOf(4f, 4f)) }
+    val lineStroke = remember { Stroke(2.5f, cap = StrokeCap.Round, join = StrokeJoin.Round) }
+
+    // 复用 Path 对象
+    val pathLine = remember { Path() }
+    val pathFill = remember { Path() }
 
     // 读取动画值以触发重组
     val maxV = animMaxV.value
-    val currentMs = frameMs
+    val curNanos = frameNanos
     val tipDVal = tipDown.value
     val tipUVal = tipUp.value
 
@@ -607,78 +1397,84 @@ private fun AnimatedSpeedChart(
         val w = size.width
         val h = size.height
         val padTop = 4f
-        val chartH = h - padTop
+        val padBottom = 2f
+        val chartH = h - padTop - padBottom
         val step = w / (slots - 1).toFloat()
         val n = bufLen
-
-        // 基于时间的平移
-        val elapsed = (currentMs - lastPushMs).coerceAtLeast(0)
-        val t = (elapsed / dataIntervalMs).coerceIn(0f, 1f)
-        val shiftPx = t * step
-
-        // 网格
-        for (row in 1..3) {
-            val gy = padTop + chartH * (row / 4f)
-            drawLine(gridColor, Offset(0f, gy), Offset(w, gy), 1f,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f)))
-        }
-
         if (n < 2) return@Canvas
 
-        // 最后一个点使用 tip 动画值，其余用 buffer 原始值
-        fun pt(buf: FloatArray, tipVal: Float, i: Int): Offset {
-            val x = i * step - shiftPx
-            val raw = if (i == n - 1) tipVal else buf[i]
+        // 基于帧时间计算平移
+        val elapsedMs = (curNanos - lastPushNanos) / 1_000_000f
+        val t = (elapsedMs / dataIntervalMs).coerceIn(0f, 1f)
+        val shiftPx = t * step
+
+        // ── 网格 ──
+        for (row in 1..3) {
+            val gy = padTop + chartH * (row / 4f)
+            drawLine(gridColor, Offset(0f, gy), Offset(w, gy), 0.8f, pathEffect = dashEffect)
+        }
+
+        // ── 坐标映射 ──
+        fun ptX(i: Int): Float = i * step - shiftPx
+        fun ptY(raw: Float): Float {
             val v = (raw / maxV).coerceIn(0f, 1f)
-            return Offset(x, padTop + chartH * (1f - v))
+            return padTop + chartH * (1f - v)
         }
+        fun rawAt(buf: FloatArray, tipVal: Float, i: Int): Float =
+            if (i == n - 1) tipVal else buf[i]
 
-        fun buildPath(buf: FloatArray, tipVal: Float): Path {
-            val p = Path()
-            val first = pt(buf, tipVal, 0)
-            p.moveTo(first.x, first.y)
+        // ── 构建曲线 ──
+        fun buildLine(buf: FloatArray, tipVal: Float, dst: Path) {
+            dst.reset()
+            val x0 = ptX(0); val y0 = ptY(rawAt(buf, tipVal, 0))
+            dst.moveTo(x0, y0)
+            var px = x0; var py = y0
             for (i in 1 until n) {
-                val prev = pt(buf, tipVal, i - 1)
-                val cur = pt(buf, tipVal, i)
-                val cx = (prev.x + cur.x) / 2f
-                p.cubicTo(cx, prev.y, cx, cur.y, cur.x, cur.y)
+                val cx = ptX(i); val cy = ptY(rawAt(buf, tipVal, i))
+                val mx = (px + cx) * 0.5f
+                dst.cubicTo(mx, py, mx, cy, cx, cy)
+                px = cx; py = cy
             }
-            return p
         }
 
-        fun buildFill(buf: FloatArray, tipVal: Float): Path {
-            val fill = Path()
-            fill.addPath(buildPath(buf, tipVal))
-            val lastPt = pt(buf, tipVal, n - 1)
-            fill.lineTo(lastPt.x, h)
-            val firstPt = pt(buf, tipVal, 0)
-            fill.lineTo(firstPt.x, h)
-            fill.close()
-            return fill
+        fun buildFillFrom(linePath: Path, buf: FloatArray, tipVal: Float, dst: Path) {
+            dst.reset()
+            dst.addPath(linePath)
+            val lastX = ptX(n - 1); val firstX = ptX(0)
+            dst.lineTo(lastX, h)
+            dst.lineTo(firstX, h)
+            dst.close()
         }
 
-        drawContext.canvas.save()
-        drawContext.canvas.clipRect(0f, 0f, w, h)
+        clipRect(0f, 0f, w, h) {
+            // 下载：填充 → 线条
+            buildLine(downBuf, tipDVal, pathLine)
+            buildFillFrom(pathLine, downBuf, tipDVal, pathFill)
+            drawPath(pathFill, Brush.verticalGradient(downGrad, padTop, h))
+            drawPath(pathLine, downColor, style = lineStroke)
 
-        drawPath(buildFill(downBuf, tipDVal), Brush.verticalGradient(downGrad, 0f, h))
-        drawPath(buildFill(upBuf, tipUVal), Brush.verticalGradient(upGrad, 0f, h))
-        drawPath(buildPath(upBuf, tipUVal), upColor, style = Stroke(3f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        drawPath(buildPath(downBuf, tipDVal), downColor, style = Stroke(3f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            // 上传：填充 → 线条
+            buildLine(upBuf, tipUVal, pathLine)
+            buildFillFrom(pathLine, upBuf, tipUVal, pathFill)
+            drawPath(pathFill, Brush.verticalGradient(upGrad, padTop, h))
+            drawPath(pathLine, upColor, style = lineStroke)
 
-        // 最新数据点标记
-        val dotD = pt(downBuf, tipDVal, n - 1)
-        val dotU = pt(upBuf, tipUVal, n - 1)
-        if (tipDVal / maxV > 0.005f && dotD.x in 0f..w) {
-            drawCircle(downColor.copy(alpha = 0.25f), 8f, dotD)
-            drawCircle(downColor, 5f, dotD)
-            drawCircle(Color.White, 2f, dotD)
+            // ── 最新数据点标记 ──
+            val lastX = ptX(n - 1)
+            if (lastX in 0f..w) {
+                val dotDY = ptY(tipDVal)
+                val dotUY = ptY(tipUVal)
+                if (tipDVal / maxV > 0.005f) {
+                    drawCircle(downColor.copy(alpha = 0.20f), 7f, Offset(lastX, dotDY))
+                    drawCircle(downColor, 4f, Offset(lastX, dotDY))
+                    drawCircle(Color.White, 1.5f, Offset(lastX, dotDY))
+                }
+                if (tipUVal / maxV > 0.005f) {
+                    drawCircle(upColor.copy(alpha = 0.20f), 7f, Offset(lastX, dotUY))
+                    drawCircle(upColor, 4f, Offset(lastX, dotUY))
+                    drawCircle(Color.White, 1.5f, Offset(lastX, dotUY))
+                }
+            }
         }
-        if (tipUVal / maxV > 0.005f && dotU.x in 0f..w) {
-            drawCircle(upColor.copy(alpha = 0.25f), 8f, dotU)
-            drawCircle(upColor, 5f, dotU)
-            drawCircle(Color.White, 2f, dotU)
-        }
-
-        drawContext.canvas.restore()
     }
 }

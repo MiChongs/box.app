@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/miuix_appcompat_action_bar_tab_text_color_disable_light" android:state_enabled="false" />
+    <item android:color="@color/miuix_appcompat_action_bar_tab_text_color_pressed_light" android:state_pressed="true" />
+    <item android:color="@color/miuix_appcompat_action_bar_tab_text_color_selected_light" android:state_selected="true" />
+    <item android:color="@color/miuix_appcompat_action_bar_tab_text_color_normal_light" />
+</selector>

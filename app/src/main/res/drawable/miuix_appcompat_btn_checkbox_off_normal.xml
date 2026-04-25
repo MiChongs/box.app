@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:name="vector"
+    android:width="@dimen/miuix_appcompat_check_widget_width"
+    android:height="@dimen/miuix_appcompat_check_widget_height"
+    android:viewportWidth="23.0"
+    android:viewportHeight="23.0">
+    <path
+        android:name="arrow"
+        android:pathData="M 5 9.4 L 10.3 14.9 L 17.9 5.1"
+        android:strokeWidth="2.0"
+        android:strokeAlpha="0.0"
+        android:strokeColor="?attr/checkBoxOnDrawableForegroundColor"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeMiterLimit="10.0"
+        android:trimPathStart="0.1"
+        android:trimPathEnd="0.1" />
+</vector>

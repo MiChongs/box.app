@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="7dp"
+    android:height="7dp"
+    android:autoMirrored="true"
+    android:viewportWidth="7.0"
+    android:viewportHeight="7.0">
+    <path
+        android:fillColor="@color/miuix_appcompat_badge_drawable_color"
+        android:pathData="M3.3205,3.6799m3.24,-0a3.24,3.24 45,1 1,-6.48 -0a3.24,3.24 0,1 1,6.48 -0" />
+</vector>

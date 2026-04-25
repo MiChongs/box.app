@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/miuix_color_light_pressed_mask" android:state_pressed="true" />
+    <item android:color="@color/miuix_color_light_hovered_mask" android:state_hovered="true" android:state_pressed="false" />
+    <item android:color="@color/miuix_appcompat_transparent" />
+</selector>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory android:title="@string/provision_basic_settings_category_appearance">
+
+        <fan.preference.DropDownPreference
+            android:defaultValue="0"
+            android:key="prefs_key_settings_theme_mode"
+            android:title="@string/provision_basic_settings_theme_mode"
+            app:entries="@array/provision_theme_mode_entries"
+            app:entryValues="@array/provision_theme_mode_values" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/provision_basic_settings_category_app">
+
+        <fan.preference.DropDownPreference
+            android:defaultValue="0"
+            android:key="prefs_key_settings_app_language"
+            android:title="@string/provision_basic_settings_language" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/provision_basic_settings_category_service">
+
+        <SwitchPreference
+            android:defaultValue="true"
+            android:key="prefs_key_settings_notification"
+            android:title="@string/provision_basic_settings_notification"
+            android:summary="@string/provision_basic_settings_notification_desc" />
+
+        <SwitchPreference
+            android:defaultValue="false"
+            android:key="prefs_key_settings_auto_start"
+            android:title="@string/provision_basic_settings_auto_start"
+            android:summary="@string/provision_basic_settings_auto_start_desc" />
+
+    </PreferenceCategory>
+</PreferenceScreen>

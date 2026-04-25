@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<fan.smooth.SmoothFrameLayout2 xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:radius="@dimen/miuix_appcompat_immersion_menu_background_radius">
+
+    <LinearLayout
+        style="@style/Widget.ListView.Item.ContextSeparate"
+        android:layout_width="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@android:id/icon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="@dimen/miuix_appcompat_immersion_menu_icon_margin_end"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@android:id/text1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:singleLine="true"
+            android:textAlignment="viewStart"
+            android:textAppearance="@style/TextAppearance.List.Immersion" />
+    </LinearLayout>
+</fan.smooth.SmoothFrameLayout2>

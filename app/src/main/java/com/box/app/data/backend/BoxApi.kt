@@ -51,6 +51,8 @@ internal object BoxApi {
         val host: String,
         val destinationIP: String,
         val destinationPort: String,
+        val sourceIP: String = "",
+        val sourcePort: String = "",
         val network: String,
         val type: String,
         val chains: List<String>,
@@ -59,7 +61,19 @@ internal object BoxApi {
         val download: Long,
         val upload: Long,
         val start: String,
+        val process: String = "",
+        val processPath: String = "",
+        val sniffHost: String = "",
+        val destinationGeoIP: String = "",
         val isAlive: Boolean
+    )
+
+    /** GET /connections 完整快照 */
+    data class ConnectionsSnapshot(
+        val downloadTotal: Long,
+        val uploadTotal: Long,
+        val memory: Long,
+        val connections: List<ConnectionInfo>
     )
 
     data class ClashVersionInfo(
@@ -1234,8 +1248,10 @@ internal object BoxApi {
         }
     }
 
-    suspend fun getAllConnections(): List<ConnectionInfo> = withContext(Dispatchers.IO) {
-        val apiConfig = cachedApiConfig ?: getExternalControllerConfig()?.also { cachedApiConfig = it } ?: return@withContext emptyList()
+    private val emptySnapshot = ConnectionsSnapshot(0L, 0L, 0L, emptyList())
+
+    suspend fun getAllConnections(): ConnectionsSnapshot = withContext(Dispatchers.IO) {
+        val apiConfig = cachedApiConfig ?: getExternalControllerConfig()?.also { cachedApiConfig = it } ?: return@withContext emptySnapshot
         return@withContext try {
             val url = "http://127.0.0.1:${apiConfig.port}/connections"
             val requestBuilder = Request.Builder().get().url(url)
@@ -1244,11 +1260,14 @@ internal object BoxApi {
             }
             val resp = okHttpClient.newCall(requestBuilder.build()).execute()
             resp.use { r ->
-                if (!r.isSuccessful) return@withContext emptyList()
+                if (!r.isSuccessful) return@withContext emptySnapshot
                 val body = r.body.string().orEmpty()
-                if (body.isBlank()) return@withContext emptyList()
+                if (body.isBlank()) return@withContext emptySnapshot
                 val json = JSONObject(body)
-                val conns = json.optJSONArray("connections") ?: return@withContext emptyList()
+                val downloadTotal = json.optLong("downloadTotal", 0L)
+                val uploadTotal = json.optLong("uploadTotal", 0L)
+                val memory = json.optLong("memory", 0L)
+                val conns = json.optJSONArray("connections") ?: return@withContext ConnectionsSnapshot(downloadTotal, uploadTotal, memory, emptyList())
                 val result = mutableListOf<ConnectionInfo>()
                 for (i in 0 until conns.length()) {
                     val c = conns.optJSONObject(i) ?: continue
@@ -1258,16 +1277,24 @@ internal object BoxApi {
                     if (chainArr != null) {
                         for (j in 0 until chainArr.length()) chainList.add(chainArr.optString(j))
                     }
-                    val host = metadata?.optString("sniffHost")?.takeIf { it.isNotBlank() }
-                        ?: metadata?.optString("host")?.takeIf { it.isNotBlank() }
-                        ?: metadata?.optString("destinationIP")?.takeIf { it.isNotBlank() }
+                    val sniffHost = metadata?.optString("sniffHost").orEmpty()
+                    val metaHost = metadata?.optString("host").orEmpty()
+                    val destIP = metadata?.optString("destinationIP").orEmpty()
+                    val host = sniffHost.takeIf { it.isNotBlank() }
+                        ?: metaHost.takeIf { it.isNotBlank() }
+                        ?: destIP.takeIf { it.isNotBlank() }
                         ?: ""
+                    // destinationGeoIP 是一个数组，取第一个元素
+                    val geoArr = metadata?.optJSONArray("destinationGeoIP")
+                    val geoIP = if (geoArr != null && geoArr.length() > 0) geoArr.optString(0) else ""
                     result.add(
                         ConnectionInfo(
                             id = c.optString("id"),
                             host = host,
-                            destinationIP = metadata?.optString("destinationIP").orEmpty(),
+                            destinationIP = destIP,
                             destinationPort = metadata?.optString("destinationPort").orEmpty(),
+                            sourceIP = metadata?.optString("sourceIP").orEmpty(),
+                            sourcePort = metadata?.optString("sourcePort").orEmpty(),
                             network = metadata?.optString("network").orEmpty(),
                             type = metadata?.optString("type").orEmpty(),
                             chains = chainList,
@@ -1276,14 +1303,18 @@ internal object BoxApi {
                             download = c.optLong("download", 0L),
                             upload = c.optLong("upload", 0L),
                             start = c.optString("start"),
+                            process = metadata?.optString("process").orEmpty(),
+                            processPath = metadata?.optString("processPath").orEmpty(),
+                            sniffHost = sniffHost,
+                            destinationGeoIP = geoIP,
                             isAlive = true
                         )
                     )
                 }
-                result
+                ConnectionsSnapshot(downloadTotal, uploadTotal, memory, result)
             }
         } catch (_: Exception) {
-            emptyList()
+            emptySnapshot
         }
     }
 
@@ -1291,6 +1322,20 @@ internal object BoxApi {
         val apiConfig = cachedApiConfig ?: getExternalControllerConfig()?.also { cachedApiConfig = it } ?: return@withContext false
         return@withContext try {
             val url = "http://127.0.0.1:${apiConfig.port}/connections/$id"
+            val requestBuilder = Request.Builder().delete("".toRequestBody(null)).url(url)
+            if (!apiConfig.secret.isNullOrEmpty()) {
+                requestBuilder.header("Authorization", "Bearer ${apiConfig.secret}")
+            }
+            okHttpClient.newCall(requestBuilder.build()).execute().use { it.isSuccessful }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    suspend fun closeAllConnections(): Boolean = withContext(Dispatchers.IO) {
+        val apiConfig = cachedApiConfig ?: getExternalControllerConfig()?.also { cachedApiConfig = it } ?: return@withContext false
+        return@withContext try {
+            val url = "http://127.0.0.1:${apiConfig.port}/connections"
             val requestBuilder = Request.Builder().delete("".toRequestBody(null)).url(url)
             if (!apiConfig.secret.isNullOrEmpty()) {
                 requestBuilder.header("Authorization", "Bearer ${apiConfig.secret}")

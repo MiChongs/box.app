@@ -107,7 +107,7 @@ fun SortFilterBottomSheet(
 ) {
     if (!show) return
 
-    val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val navBarPadding = com.box.app.ui.components.systemNavBarBottomPadding()
 
     HyperBottomSheet(
         show = true,

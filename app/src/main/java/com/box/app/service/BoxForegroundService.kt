@@ -30,8 +30,15 @@ class BoxForegroundService : Service() {
     @Volatile
     private var loopJob: Job? = null
 
+    /** 防止 onStartCommand 并发调用时重复启动 loopJob */
+    private val loopGuard = Any()
+
     @Volatile
     private var foregroundStarted: Boolean = false
+
+    /** 防止 doStopSelf() 被 loop 和 immediate-update 协程并发重复触发 */
+    @Volatile
+    private var isStopping: Boolean = false
 
     @Volatile
     private var desiredStatus: ServiceStatus = ServiceStatus.Checking
@@ -61,37 +68,51 @@ class BoxForegroundService : Service() {
         ensureChannel()
     }
 
-    private fun ensureForegroundStarted() {
-        if (foregroundStarted) return
-        try {
-            startForeground(
-                NOTIFICATION_ID,
-                buildNotification(getString(R.string.service_status_checking), "")
-            )
+    /**
+     * @return true 表示已进入前台，false 表示失败（已调用 stopSelf，应返回 START_NOT_STICKY）
+     */
+    private fun ensureForegroundStarted(): Boolean {
+        if (foregroundStarted) return true
+        return try {
+            val notification = buildNotification(getString(R.string.service_status_checking), "")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
             foregroundStarted = true
+            true
         } catch (t: Throwable) {
             foregroundStarted = false
-            stopForegroundCompat()
-            stopSelf()
+            doStopSelf()
+            false
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!isNotificationEnabled(this)) {
-            stopForegroundCompat()
-            stopSelf()
+            doStopSelf()
             return START_NOT_STICKY
         }
 
         if (intent?.action == ACTION_STOP) {
-            stopForegroundCompat()
-            stopSelf()
+            doStopSelf()
             return START_NOT_STICKY
         }
 
-        // Android 12+ requires startForeground() very quickly after startForegroundService().
-        // Always enter foreground immediately; any heavy work happens after this.
-        ensureForegroundStarted()
+        // Android 12+ 要求在 startForegroundService() 后尽快调用 startForeground()
+        if (!ensureForegroundStarted()) return START_NOT_STICKY
+
+        // START_STICKY 重启时 intent 为 null：重置瞬态状态
+        if (intent == null) {
+            desiredStatus = ServiceStatus.Checking
+            desiredStatusSetAtMs = 0L
+            isStopping = false
+        }
 
         when (intent?.action) {
             ACTION_STOP_SERVICE -> {
@@ -119,39 +140,77 @@ class BoxForegroundService : Service() {
             }
         }
 
-        // Push one immediate update (box.app style) so UI doesn't have to wait for the next 15s tick.
+        // 立即触发一次通知刷新，不等下一个 tick
         scope.launch {
             runCatching { updateNotificationOnce() }
         }
 
-        if (loopJob?.isActive != true) {
-            loopJob = scope.launch {
-                while (true) {
-                    runCatching {
-                        if (!isNotificationEnabled(this@BoxForegroundService)) {
-                            stopForegroundCompat()
-                            stopSelf()
-                            return@launch
-                        }
-
-                        val displayStatus = updateNotificationOnce()
-                        if (displayStatus is ServiceStatus.Stopped) {
-                            stopForegroundCompat()
-                            stopSelf()
-                            return@launch
-                        }
-                    }
-                    delay(REFRESH_MS)
-                }
+        synchronized(loopGuard) {
+            if (loopJob?.isActive != true) {
+                loopJob = scope.launch { runPollingLoop() }
             }
         }
 
         return START_STICKY
     }
 
+    /**
+     * 用户从最近任务列表划走 App 时，重新调度服务重启。
+     * 不能在此直接调用 startForegroundService（Android 8+ 后台启动限制），
+     * 改为通过 AlarmManager + BroadcastReceiver 延迟重启。
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        if (isNotificationEnabled(this)) {
+            ServiceRestartReceiver.scheduleRestart(this, delayMs = 2_000L)
+        }
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
         scope.cancel()
         super.onDestroy()
+    }
+
+    /** 线程安全的单次停止入口，防止并发重复调用 */
+    private fun doStopSelf() {
+        if (isStopping) return
+        isStopping = true
+        stopForegroundCompat()
+        stopSelf()
+    }
+
+    /**
+     * 核心轮询循环，带错误退避：
+     * - 连续失败 >3 次后，延迟按次数递增（最长 MAX_BACKOFF_MS）
+     * - 服务停止时调用 doStopSelf() 并退出循环
+     */
+    private suspend fun runPollingLoop() {
+        var consecutiveErrors = 0
+        while (true) {
+            val result = runCatching {
+                if (!isNotificationEnabled(this@BoxForegroundService)) {
+                    doStopSelf()
+                    return@runPollingLoop
+                }
+                updateNotificationOnce()
+            }
+
+            when {
+                result.isFailure -> consecutiveErrors++
+                result.getOrNull() is ServiceStatus.Stopped -> {
+                    doStopSelf()
+                    return
+                }
+                else -> consecutiveErrors = 0
+            }
+
+            val nextDelay = if (consecutiveErrors > 3) {
+                minOf(REFRESH_MS * consecutiveErrors.toLong(), MAX_BACKOFF_MS)
+            } else {
+                REFRESH_MS
+            }
+            delay(nextDelay)
+        }
     }
 
     private fun ensureChannel() {
@@ -360,8 +419,14 @@ class BoxForegroundService : Service() {
         private const val NOTIFICATION_ID = 1001
 
         private const val REFRESH_MS = 15_000L
-        private const val GRACE_MS = 10_000L
+        // GRACE_MS 必须 > REFRESH_MS，确保宽限期至少覆盖一个完整轮询周期
+        private const val GRACE_MS = REFRESH_MS + 5_000L  // 20s
         private const val TRANSITION_MS = 6_000L
+        private const val MAX_BACKOFF_MS = 60_000L
+
+        // android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE (API 29, value = 0x10)
+        // 避免直接引用该符号以防部分工具链解析失败
+        private const val FG_TYPE_CONNECTED_DEVICE = 0x00000010
 
         private const val ACTION_STOP = "com.box.app.service.action.STOP"
         private const val ACTION_UPDATE_STATUS = "com.box.app.service.action.UPDATE_STATUS"

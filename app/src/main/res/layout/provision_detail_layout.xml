@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ This file is part of HyperCeiler.
+  ~
+  ~ HyperCeiler is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as
+  ~ published by the Free Software Foundation, either version 3 of the
+  ~ License.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  ~
+  ~ Copyright (C) 2023-2026 HyperCeiler Contributions
+  -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
+    android:id="@+id/provision_lyt"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <include layout="@layout/provision_actionbar_layout" />
+
+    <Space
+        android:id="@+id/provision_title_space"
+        android:visibility="gone"
+        android:layout_width="match_parent"
+        tools:visibility="visible"
+        android:layout_height="@dimen/provision_space_between_actionbar_title" />
+
+    <ImageView
+        android:id="@+id/preview_image"
+        android:layout_width="@dimen/provision_preview_image_size"
+        android:layout_height="@dimen/provision_preview_image_size"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="@dimen/provision_preview_image_margin_top"
+        android:layout_marginBottom="@dimen/provision_preview_image_margin_bottom"/>
+
+    <include layout="@layout/provision_lyt_title_layout" />
+
+    <include layout="@layout/provision_anim_display_layout" />
+
+    <include layout="@layout/provision_fragment_content" />
+</LinearLayout>

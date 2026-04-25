@@ -1,8 +1,9 @@
 package com.box.app.utils
 
+import android.app.LocaleManager
 import android.content.Context
-import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.os.LocaleListCompat
+import android.os.Build
+import android.os.LocaleList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,22 +27,26 @@ object LanguageManager {
         val lang = runCatching { AppLanguage.valueOf(saved ?: AppLanguage.SYSTEM.name) }.getOrNull()
             ?: AppLanguage.SYSTEM
         _language.value = lang
-        applyAppCompatLocales(lang)
+        applyLocale(context, lang)
     }
 
     fun setLanguage(context: Context, lang: AppLanguage) {
         _language.value = lang
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_LANGUAGE, lang.name).apply()
-        applyAppCompatLocales(lang)
+        applyLocale(context, lang)
     }
 
-    private fun applyAppCompatLocales(lang: AppLanguage) {
-        val locales = when (lang) {
-            AppLanguage.SYSTEM -> LocaleListCompat.getEmptyLocaleList()
-            AppLanguage.ENGLISH -> LocaleListCompat.forLanguageTags("en")
-            AppLanguage.CHINESE -> LocaleListCompat.forLanguageTags("zh-CN")
+    private fun applyLocale(context: Context, lang: AppLanguage) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val localeManager = context.getSystemService(LocaleManager::class.java)
+            val locales = when (lang) {
+                AppLanguage.SYSTEM -> LocaleList.getEmptyLocaleList()
+                AppLanguage.ENGLISH -> LocaleList.forLanguageTags("en")
+                AppLanguage.CHINESE -> LocaleList.forLanguageTags("zh-CN")
+            }
+            localeManager?.applicationLocales = locales
         }
-        AppCompatDelegate.setApplicationLocales(locales)
+        // Android 12 及以下由 AppTheme 中的 Configuration 处理
     }
 }

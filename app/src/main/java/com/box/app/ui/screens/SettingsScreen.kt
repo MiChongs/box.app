@@ -275,6 +275,8 @@ fun SettingsScreen(
                 listState = listState,
                 pagePadding = pagePadding,
                 c = c,
+                onOpenTheme = { subPage = "theme" },
+                onOpenLatencyTargets = { subPage = "latency" },
                 onOpenOpenSourceLicenses = { subPage = "licenses" },
                 onOpenAbout = { subPage = "about" }
             )
@@ -311,6 +313,12 @@ fun SettingsScreen(
             ) {
                 CompositionLocalProvider(LocalFloatingNavBarSpaceDp provides 0.dp) {
                     when (subPage) {
+                        "theme" -> ThemeSettingsScreen(
+                            onBack = { subPage = null }
+                        )
+                        "latency" -> LatencyTargetsScreen(
+                            onBack = { subPage = null }
+                        )
                         "licenses" -> OpenSourceLicensesScreen(
                             onBack = { subPage = null },
                             onNavVisibilityChange = onNavVisibilityChange,
@@ -336,6 +344,8 @@ private fun SettingsMainContent(
     listState: androidx.compose.foundation.lazy.LazyListState,
     pagePadding: androidx.compose.ui.unit.Dp,
     c: com.box.app.ui.theme.AppColors,
+    onOpenTheme: () -> Unit = {},
+    onOpenLatencyTargets: () -> Unit = {},
     onOpenOpenSourceLicenses: () -> Unit,
     onOpenAbout: () -> Unit = {}
 ) {
@@ -382,7 +392,7 @@ private fun SettingsMainContent(
 
     var showAppearanceTuningSheet by remember { mutableStateOf(false) }
     var showProxyTrafficFilterSheet by remember { mutableStateOf(false) }
-    var showLatencyTargetsSheet by remember { mutableStateOf(false) }
+    // showLatencyTargetsSheet 已移除 — 延迟目标使用二级页面
     var showBackupRestoreDialog by remember { mutableStateOf(false) }
 
     val appPrefs = remember { context.getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
@@ -413,32 +423,7 @@ private fun SettingsMainContent(
     var lastDownloadId by remember { mutableStateOf<Long?>(null) }
     var lastDownloadMime by remember { mutableStateOf<String?>(null) }
 
-    var latencyDirty by remember { mutableStateOf(false) }
-    var latencyName1 by rememberSaveable { mutableStateOf("") }
-    var latencyUrl1 by rememberSaveable { mutableStateOf("") }
-    var latencyName2 by rememberSaveable { mutableStateOf("") }
-    var latencyUrl2 by rememberSaveable { mutableStateOf("") }
-    var latencyName3 by rememberSaveable { mutableStateOf("") }
-    var latencyUrl3 by rememberSaveable { mutableStateOf("") }
-
-    LaunchedEffect(latencyTargets) {
-        if (latencyDirty) return@LaunchedEffect
-        val t1 = latencyTargets.getOrNull(0)
-        val t2 = latencyTargets.getOrNull(1)
-        val t3 = latencyTargets.getOrNull(2)
-        if (t1 != null) {
-            latencyName1 = t1.name
-            latencyUrl1 = t1.url
-        }
-        if (t2 != null) {
-            latencyName2 = t2.name
-            latencyUrl2 = t2.url
-        }
-        if (t3 != null) {
-            latencyName3 = t3.name
-            latencyUrl3 = t3.url
-        }
-    }
+    // latencyName/Url 状态已移至 LatencyTargetsScreen
 
     val appIconDrawable = remember {
         runCatching { context.applicationInfo.loadIcon(context.packageManager) }.getOrNull()
@@ -801,13 +786,9 @@ private fun SettingsMainContent(
             }
         }
     }
-    val latencyPreview = listOf(
-        latencyName1 to latencyUrl1,
-        latencyName2 to latencyUrl2,
-        latencyName3 to latencyUrl3
-    ).joinToString("  ·  ") { (name, url) ->
-        val resolvedName = name.trim().ifBlank { "-" }
-        val host = runCatching { Uri.parse(url.trim()).host }.getOrNull().orEmpty()
+    val latencyPreview = latencyTargets.joinToString("  ·  ") { target ->
+        val resolvedName = target.name.trim().ifBlank { "-" }
+        val host = runCatching { Uri.parse(target.url.trim()).host }.getOrNull().orEmpty()
         if (host.isBlank()) resolvedName else "$resolvedName · $host"
     }
     val themeEntries = listOf(
@@ -1001,213 +982,7 @@ private fun SettingsMainContent(
         }
     }
 
-    if (showLatencyTargetsSheet) {
-        AppModalBottomSheet(
-            onDismissRequest = { showLatencyTargetsSheet = false }
-        ) {
-            val sheetScrollState = rememberScrollState()
-
-            fun markDirty() {
-                if (!latencyDirty) latencyDirty = true
-            }
-
-            fun previewTitle(name: String, url: String): String {
-                val resolvedName = name.trim().ifBlank { "-" }
-                val host = runCatching { Uri.parse(url.trim()).host }.getOrNull().orEmpty().ifBlank { url.trim() }
-                return if (host.isBlank()) resolvedName else "$resolvedName  ·  $host"
-            }
-
-            @Composable
-            fun TargetCard(
-                index: Int,
-                name: String,
-                url: String,
-                expanded: Boolean,
-                onToggle: () -> Unit,
-                onNameChange: (String) -> Unit,
-                onUrlChange: (String) -> Unit
-            ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedRectangle(18.dp)),
-                    cornerRadius = 18.dp,
-                    colors = CardDefaults.defaultColors(
-                        color = MiuixTheme.colorScheme.surfaceVariant
-                    ),
-                    onClick = onToggle
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp)
-                    ) {
-                        Text(
-                            text = "#$index",
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = c.textSecondary
-                        )
-                        Text(
-                            text = previewTitle(name, url),
-                            style = MiuixTheme.textStyles.body1,
-                            fontWeight = FontWeight.SemiBold,
-                            color = c.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-
-                        if (expanded) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            SettingsTextFieldRow(
-                                icon = Icons.Filled.Tune,
-                                title = stringResource(R.string.settings_latency_target_name),
-                                subtitle = "#$index",
-                                value = name,
-                                placeholder = "",
-                                onValueChange = { value ->
-                                    markDirty()
-                                    onNameChange(value)
-                                }
-                            )
-                            SettingsTextFieldRow(
-                                icon = Icons.Filled.Link,
-                                title = stringResource(R.string.settings_latency_target_url),
-                                subtitle = "#$index",
-                                value = url,
-                                placeholder = "https://",
-                                onValueChange = { value ->
-                                    markDirty()
-                                    onUrlChange(value)
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
-            var expand1 by rememberSaveable { mutableStateOf(false) }
-            var expand2 by rememberSaveable { mutableStateOf(false) }
-            var expand3 by rememberSaveable { mutableStateOf(false) }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(sheetScrollState)
-                    .padding(horizontal = 18.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.settings_latency_targets_title),
-                    style = MiuixTheme.textStyles.title2,
-                    fontWeight = FontWeight.SemiBold,
-                    color = c.textPrimary
-                )
-                Text(
-                    text = stringResource(R.string.settings_latency_targets_subtitle),
-                    style = MiuixTheme.textStyles.body2,
-                    color = c.textSecondary,
-                    modifier = Modifier.padding(top = 6.dp, bottom = 16.dp)
-                )
-                TargetCard(
-                    index = 1,
-                    name = latencyName1,
-                    url = latencyUrl1,
-                    expanded = expand1,
-                    onToggle = { expand1 = !expand1 },
-                    onNameChange = { latencyName1 = it },
-                    onUrlChange = { latencyUrl1 = it }
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                TargetCard(
-                    index = 2,
-                    name = latencyName2,
-                    url = latencyUrl2,
-                    expanded = expand2,
-                    onToggle = { expand2 = !expand2 },
-                    onNameChange = { latencyName2 = it },
-                    onUrlChange = { latencyUrl2 = it }
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                TargetCard(
-                    index = 3,
-                    name = latencyName3,
-                    url = latencyUrl3,
-                    expanded = expand3,
-                    onToggle = { expand3 = !expand3 },
-                    onNameChange = { latencyName3 = it },
-                    onUrlChange = { latencyUrl3 = it }
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        border = BorderStroke(1.dp, c.divider.copy(alpha = 0.75f)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = c.textSecondary),
-                        onClick = {
-                            LatencyTargetsManager.resetToDefaults(context)
-                            latencyDirty = false
-                            LatencyTargetsManager.targets.value.let { list ->
-                                list.getOrNull(0)?.let {
-                                    latencyName1 = it.name
-                                    latencyUrl1 = it.url
-                                }
-                                list.getOrNull(1)?.let {
-                                    latencyName2 = it.name
-                                    latencyUrl2 = it.url
-                                }
-                                list.getOrNull(2)?.let {
-                                    latencyName3 = it.name
-                                    latencyUrl3 = it.url
-                                }
-                            }
-                            scope.launch { HomeRepository.refreshLatencyNow() }
-                        }
-                    ) {
-                        Text(text = stringResource(R.string.settings_latency_reset))
-                    }
-                    Button(
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MiuixTheme.colorScheme.primary,
-                            contentColor = MiuixTheme.colorScheme.onPrimary
-                        ),
-                        onClick = {
-                            LatencyTargetsManager.setTargets(
-                                context,
-                                LatencyTarget(name = latencyName1, url = latencyUrl1),
-                                LatencyTarget(name = latencyName2, url = latencyUrl2),
-                                LatencyTarget(name = latencyName3, url = latencyUrl3)
-                            )
-                            latencyDirty = false
-                            LatencyTargetsManager.targets.value.let { list ->
-                                list.getOrNull(0)?.let {
-                                    latencyName1 = it.name
-                                    latencyUrl1 = it.url
-                                }
-                                list.getOrNull(1)?.let {
-                                    latencyName2 = it.name
-                                    latencyUrl2 = it.url
-                                }
-                                list.getOrNull(2)?.let {
-                                    latencyName3 = it.name
-                                    latencyUrl3 = it.url
-                                }
-                            }
-                            scope.launch { HomeRepository.refreshLatencyNow() }
-                            showLatencyTargetsSheet = false
-                        }
-                    ) {
-                        Text(text = stringResource(R.string.settings_latency_save))
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-        }
-    }
+    // 延迟目标编辑已移至 LatencyTargetsScreen 二级页面
 
     Scaffold(
         topBar = {
@@ -1231,23 +1006,10 @@ private fun SettingsMainContent(
                 SettingsPreferenceSection(
                     title = stringResource(R.string.settings_section_appearance)
                 ) {
-                WindowDropdownPreference(
-                    items = themeEntries,
-                    selectedIndex = when (currentThemeMode) {
-                        ThemeMode.SYSTEM -> 0
-                        ThemeMode.LIGHT -> 1
-                        ThemeMode.DARK -> 2
-                    },
-                    title = stringResource(R.string.settings_theme_mode),
-
-                    onSelectedIndexChange = { index ->
-                        val mode = when (index) {
-                            1 -> ThemeMode.LIGHT
-                            2 -> ThemeMode.DARK
-                            else -> ThemeMode.SYSTEM
-                        }
-                        ThemeManager.setThemeMode(context, mode)
-                    }
+                ArrowPreference(
+                    title = stringResource(R.string.settings_theme_appearance),
+                    summary = stringResource(R.string.settings_theme_appearance_subtitle),
+                    onClick = onOpenTheme
                 )
                 SettingsPreferenceDivider()
                 WindowDropdownPreference(
@@ -1299,63 +1061,6 @@ private fun SettingsMainContent(
                             )
                         )
                     }
-                )
-                SettingsPreferenceDivider()
-                SwitchPreference(
-                    checked = blurEffectsActive,
-                    onCheckedChange = { ThemeManager.setBlurEffectsEnabled(context, it) },
-                    title = stringResource(R.string.settings_blur_effects),
-                    summary = blurSummary,
-                    enabled = blurEffectsSupported,
-                )
-                SettingsPreferenceDivider()
-                SwitchPreference(
-                    checked = liquidGlassNavBarEnabled,
-                    onCheckedChange = { ThemeManager.setLiquidGlassNavBar(context, it) },
-                    title = stringResource(R.string.settings_liquid_glass_nav_bar),
-                    summary = stringResource(R.string.settings_liquid_glass_nav_bar_subtitle),
-                    enabled = blurEffectsSupported,
-                )
-                SettingsPreferenceDivider()
-                run {
-                    val mapleFontEnabled by ThemeManager.mapleFontLogs.collectAsState()
-                    val fontState by MapleFontManager.state.collectAsState()
-                    val mapleSummary = when {
-                        fontState is MapleFontManager.FontState.Downloading -> stringResource(R.string.settings_maple_font_logs_downloading)
-                        fontState is MapleFontManager.FontState.Error -> stringResource(R.string.settings_maple_font_logs_failed)
-                        mapleFontEnabled && fontState is MapleFontManager.FontState.Ready -> stringResource(R.string.settings_maple_font_logs_ready)
-                        else -> stringResource(R.string.settings_maple_font_logs_subtitle)
-                    }
-                    SwitchPreference(
-                        checked = mapleFontEnabled,
-                        onCheckedChange = { enabled ->
-                            ThemeManager.setMapleFontLogs(context, enabled)
-                            if (enabled && !MapleFontManager.isCached(context)) {
-                                scope.launch { MapleFontManager.downloadAndInstall(context) }
-                            } else if (enabled) {
-                                MapleFontManager.loadCachedFont(context)
-                            }
-                        },
-                        title = stringResource(R.string.settings_maple_font_logs),
-                        summary = mapleSummary,
-                        enabled = fontState !is MapleFontManager.FontState.Downloading
-                    )
-                }
-                SettingsPreferenceDivider()
-                run {
-                    val hyperXNavEnabled by ThemeManager.hyperXNavTransitions.collectAsState()
-                    SwitchPreference(
-                        checked = hyperXNavEnabled,
-                        onCheckedChange = { ThemeManager.setHyperXNavTransitions(context, it) },
-                        title = stringResource(R.string.settings_hyperx_nav_transitions),
-                        summary = stringResource(R.string.settings_hyperx_nav_transitions_subtitle)
-                    )
-                }
-                SettingsPreferenceDivider()
-                ArrowPreference(
-                    title = stringResource(R.string.settings_appearance_more),
-                    summary = visualTuneSummary,
-                    onClick = { showAppearanceTuningSheet = true }
                 )
                 }
             }
@@ -1434,7 +1139,7 @@ private fun SettingsMainContent(
                 ArrowPreference(
                     title = stringResource(R.string.settings_latency_targets_title),
                     summary = latencyPreview,
-                    onClick = { showLatencyTargetsSheet = true }
+                    onClick = onOpenLatencyTargets
                 )
                 }
             }

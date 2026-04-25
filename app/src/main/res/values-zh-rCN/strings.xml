@@ -22,6 +22,11 @@
     <string name="config_editor_discard_changes_title">丢弃更改？</string>
     <string name="config_editor_discard_changes_message">你有未保存的更改，将会丢失。</string>
     <string name="config_editor_discard">丢弃</string>
+    <string name="config_editor_word_wrap">自动换行</string>
+    <string name="config_editor_theme_select">主题</string>
+    <string name="config_editor_theme_auto">自动</string>
+    <string name="config_editor_theme_downloadable">可下载</string>
+    <string name="config_editor_theme_downloading">下载中…</string>
     <string name="action_apply">应用</string>
     <string name="action_run">运行</string>
     <string name="action_search">搜索</string>
@@ -67,6 +72,11 @@
     <string name="onboarding_tips_body">更新前建议先停止服务。\n\n工具页：\n- 更新核心 / 订阅 / WebUI / CNIP：点击右侧图标即可下载更新\n\n设置页：\n- 在"模块版本"处可点击检查更新</string>
     <string name="onboarding_finish">完成</string>
     <string name="onboarding_continue">继续</string>
+    <string name="onboarding_setup_complete">设置完成</string>
+    <string name="onboarding_enter_app">开始使用</string>
+    <string name="onboarding_basic_settings">基本设置</string>
+    <string name="onboarding_basic_settings_desc">你可以稍后在设置中更改这些选项</string>
+    <string name="onboarding_agree_and_continue">同意并继续</string>
     <string name="onboarding_optional_permissions_hint">您可以稍后设置下列可选权限</string>
 
     <!-- Quick Settings / Foreground service -->
@@ -168,6 +178,10 @@
     <string name="home_subscription_total">总计 %1$s</string>
     <string name="home_subscription_used_label">已用</string>
     <string name="home_subscription_total_label">总量</string>
+    <string name="home_subscription_remain_badge">剩余 %1$d%%</string>
+    <string name="home_speed_upload_label">上行</string>
+    <string name="home_speed_download_label">下行</string>
+    <string name="home_system_ram_label">内存</string>
 
     <string name="home_service_status_running">运行中</string>
     <string name="home_service_status_unavailable">不可用</string>
@@ -201,9 +215,10 @@
     <string name="home_reload_config_success">重载成功</string>
     <string name="home_reload_config_failed">重载失败</string>
 
-    <string name="home_uptime_hours_minutes">运行时间 · %1$d小时%2$d分钟</string>
-    <string name="home_uptime_minutes">运行时间 · %1$d分钟</string>
-    <string name="home_uptime_less_than_minute">运行时间 · &lt;1分钟</string>
+    <string name="home_uptime_days_hours">%1$d天%2$d时</string>
+    <string name="home_uptime_hours_minutes">%1$d时%2$d分</string>
+    <string name="home_uptime_minutes">%1$d分钟</string>
+    <string name="home_uptime_less_than_minute">&lt;1分钟</string>
 
     <string name="home_badge_service">SRV</string>
     <string name="home_badge_ip">IP</string>
@@ -279,6 +294,29 @@
     <string name="settings_ui_scale_subtitle">缩放整个界面（80% - 120%）</string>
     <string name="settings_appearance_more">其他外观设置</string>
     <string name="settings_appearance_more_subtitle">更多视觉选项</string>
+    <string name="settings_theme_appearance">主题与外观</string>
+    <string name="settings_theme_appearance_subtitle">配色、效果与视觉调整</string>
+    <string name="settings_monet">动态取色 (Monet)</string>
+    <string name="settings_monet_subtitle">动态生成主题配色方案</string>
+    <string name="settings_key_color">主题色</string>
+    <string name="settings_key_color_default">默认</string>
+    <string name="settings_color_style">调色板风格</string>
+    <string name="settings_color_spec">色彩规范</string>
+    <string name="color_red">红色</string>
+    <string name="color_pink">粉色</string>
+    <string name="color_purple">紫色</string>
+    <string name="color_deep_purple">深紫</string>
+    <string name="color_indigo">靛蓝</string>
+    <string name="color_blue">蓝色</string>
+    <string name="color_cyan">青色</string>
+    <string name="color_teal">蓝绿</string>
+    <string name="color_green">绿色</string>
+    <string name="color_yellow">黄色</string>
+    <string name="color_amber">琥珀</string>
+    <string name="color_orange">橙色</string>
+    <string name="color_brown">棕色</string>
+    <string name="color_blue_grey">蓝灰</string>
+    <string name="color_sakura">樱花</string>
     <string name="settings_language">语言</string>
     <string name="settings_language_subtitle">应用语言</string>
 
@@ -566,8 +604,8 @@
     <string name="tools_logs_loading">正在加载日志...</string>
     <string name="tools_logs_back_compact">&lt; 返回</string>
     <string name="tools_logs_auto_refresh">自动刷新</string>
-    <string name="tools_logs_auto_refresh_on">自动刷新已开启</string>
-    <string name="tools_logs_manual_refresh">手动刷新</string>
+    <string name="tools_logs_auto_refresh_on">日志内容实时更新中</string>
+    <string name="tools_logs_manual_refresh">已暂停实时更新，仅手动刷新内容</string>
     <string name="tools_logs_current_prefix">当前：%1$s • %2$s</string>
     <string name="tools_logs_failed_load">加载日志失败</string>
     <string name="tools_logs_failed_read">读取日志失败</string>
@@ -586,9 +624,12 @@
     <string name="tools_logs_live">实时</string>
     <string name="tools_logs_static">静态</string>
     <string name="tools_logs_no_content">暂无日志内容</string>
-    <string name="tools_logs_detail_hint">支持选择复制，且仍会遵循日志字体设置项。</string>
+    <string name="tools_logs_detail_hint">支持选择复制</string>
     <string name="tools_logs_delete_dialog_title">删除日志文件？</string>
     <string name="tools_logs_delete_dialog_body">将永久删除 %2$s 中的 %1$s。</string>
+    <string name="tools_logs_sort_newest">最新</string>
+    <string name="tools_logs_sort_oldest">最早</string>
+    <string name="tools_logs_filter_all">全部</string>
 
     <!-- Tools / Config -->
     <string name="tools_config_back_compact">&lt; 返回</string>
@@ -721,6 +762,40 @@
     <string name="bottomsheet_net_speed_details">详情</string>
     <string name="bottomsheet_net_speed_fastest_download">最快下载</string>
     <string name="bottomsheet_net_speed_fastest_upload">最快上传</string>
+
+    <string name="net_speed_active">活跃</string>
+    <string name="net_speed_closed">已关闭</string>
+    <string name="net_speed_no_active_connections">暂无活跃连接</string>
+    <string name="net_speed_closed_count">本次已关闭 %1$d 个连接</string>
+    <string name="net_speed_no_closed_connections">暂无已关闭连接</string>
+    <string name="net_speed_close_all">全部关闭</string>
+    <string name="net_speed_total_traffic">总流量</string>
+    <string name="net_speed_fastest_down">最快 ↓</string>
+    <string name="net_speed_fastest_up">最快 ↑</string>
+    <string name="net_speed_connections">%1$d 个连接</string>
+    <string name="net_speed_search_hint">搜索主机…</string>
+    <string name="net_speed_sort_traffic">按流量</string>
+    <string name="net_speed_sort_time">按时间</string>
+    <string name="net_speed_sort_host">按主机名</string>
+    <string name="net_speed_detail_visual">可视化</string>
+    <string name="net_speed_detail_raw">原始数据</string>
+    <string name="net_speed_detail_host">主机</string>
+    <string name="net_speed_detail_destination">目标地址</string>
+    <string name="net_speed_detail_source">来源地址</string>
+    <string name="net_speed_detail_network">协议</string>
+    <string name="net_speed_detail_type">类型</string>
+    <string name="net_speed_detail_rule">规则</string>
+    <string name="net_speed_detail_chains">代理链</string>
+    <string name="net_speed_detail_download">下载</string>
+    <string name="net_speed_detail_upload">上传</string>
+    <string name="net_speed_detail_start">开始时间</string>
+    <string name="net_speed_detail_process">进程</string>
+    <string name="net_speed_detail_geo">地理位置</string>
+    <string name="net_speed_detail_status">状态</string>
+    <string name="net_speed_detail_status_active">活跃</string>
+    <string name="net_speed_detail_status_closed">已关闭</string>
+    <string name="net_speed_detail_sniff_host">嗅探主机</string>
+
     <string name="bottomsheet_subscription_go_tools">前往 工具 / 订阅 配置</string>
     <string name="bottomsheet_subscription_none">暂无订阅</string>
     <string name="bottomsheet_subscription_expires">到期：%1$s</string>

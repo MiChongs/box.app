@@ -3,7 +3,6 @@ package com.box.app.ui.screens.tools
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,22 +11,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.runtime.Composable
@@ -43,7 +38,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -60,6 +54,12 @@ import com.box.app.R
 import com.box.app.data.backend.ShellExecutor
 import com.box.app.ui.components.ErrorToast
 import com.box.app.ui.components.contentPaddingWithNavBars
+import com.box.app.ui.components.home.HomeSemanticColors
+import com.box.app.ui.components.home.homeDangerColors
+import com.box.app.ui.components.home.homeInfoColors
+import com.box.app.ui.components.home.homeNeutralColors
+import com.box.app.ui.components.home.homeSuccessColors
+import com.box.app.ui.components.home.homeWarningColors
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import com.box.app.ui.miuix.HyperDialog
@@ -68,25 +68,33 @@ import com.box.app.ui.miuix.HyperFilterChip
 import com.box.app.utils.MapleFontManager
 import com.box.app.utils.ThemeManager
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.BasicComponent
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.produceState
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.preference.WindowDropdownPreference
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Notes
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowListPopup
 
 private enum class LogLevel {
     Error,
@@ -98,16 +106,16 @@ private enum class LogLevel {
 
 private data class LogModuleEntry(
     val index: Int,
+    // 稳定 LazyColumn key：基于内容去重，避免日志滚动时所有卡片被强制重组
+    val key: String,
     val rawLine: String,
+    // 预清洗正文，避免每张卡首次合成时在主线程跑 6 条正则
+    val cleanMessage: String,
     val level: LogLevel,
     val tag: String,
     val timestamp: String?
 )
 
-private data class LogLevelPalette(
-    val badgeContainer: Color,
-    val badgeContent: Color
-)
 
 @Composable
 fun ToolsLogsScreen(
@@ -128,11 +136,12 @@ fun ToolsLogsScreen(
     val failedDeleteText = stringResource(R.string.tools_logs_failed_delete)
     val currentStatusText = stringResource(R.string.tools_logs_status_current)
 
-    var autoRefresh by rememberSaveable { mutableStateOf(false) }
+    var autoRefresh by rememberSaveable { mutableStateOf(true) }
     var currentLogFile by rememberSaveable { mutableStateOf("") }
     var loading by rememberSaveable { mutableStateOf(false) }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
+    var showFilePopup by rememberSaveable { mutableStateOf(false) }
     var selectedTabIndex by rememberSaveable { mutableStateOf(0) }
     var prefsLoaded by remember { mutableStateOf(false) }
     var logFiles by rememberSaveable { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
@@ -148,23 +157,36 @@ fun ToolsLogsScreen(
         FontFamily.Monospace
     }
 
-    val nonBlankLineCount = remember(logContent) {
-        logContent.lineSequence().count { it.isNotBlank() }
+    // 语义色调色板在屏幕级采集一次，供所有 ModuleLogCard / 详细视图共用
+    val logPaletteOf = rememberLogLevelPaletteProvider()
+
+    // 三条重活并行（produceState 各自独占协程，Dispatchers.Default 多核并行）：
+    //   1. parseModuleEntries: 预清洗 + 解析 + 去重 key
+    //   2. filteredLogContent: 详细视图的过滤/反转/join
+    //   3. rememberHighlightedLog: 正则 + AnnotatedString 构建（见下方组件）
+    val moduleEntriesRaw by produceState<List<LogModuleEntry>>(emptyList(), logContent, currentLogFile) {
+        value = withContext(Dispatchers.Default) {
+            parseModuleEntries(logContent, currentLogFile)
+        }
     }
-    val moduleEntriesRaw = remember(logContent, currentLogFile) {
-        parseModuleEntries(logContent, currentLogFile)
+    // filter + reverse 也移到协程，600 条时能节省几 ms 主线程时间
+    val moduleEntries by produceState<List<LogModuleEntry>>(
+        emptyList(), moduleEntriesRaw, newestFirst, levelFilter
+    ) {
+        value = withContext(Dispatchers.Default) {
+            var list: List<LogModuleEntry> = moduleEntriesRaw
+            if (levelFilter != null) list = list.filter { it.level == levelFilter }
+            if (newestFirst) list.asReversed() else list
+        }
     }
-    val moduleEntries = remember(moduleEntriesRaw, newestFirst, levelFilter) {
-        var list = moduleEntriesRaw
-        if (levelFilter != null) list = list.filter { it.level == levelFilter }
-        if (newestFirst) list.asReversed() else list
-    }
-    // 详细日志视图的过滤内容（排序 + 级别过滤）
-    val filteredLogContent = remember(logContent, levelFilter, newestFirst) {
-        var lines = logContent.lines().filter { it.isNotBlank() }
-        if (levelFilter != null) lines = lines.filter { detectLogLevel(it) == levelFilter }
-        if (newestFirst) lines = lines.reversed()
-        lines.joinToString("\n")
+    // 详细日志视图的过滤内容（后台处理）
+    val filteredLogContent by produceState("", logContent, levelFilter, newestFirst) {
+        value = withContext(Dispatchers.Default) {
+            var lines = logContent.lines().filter { it.isNotBlank() }
+            if (levelFilter != null) lines = lines.filter { detectLogLevel(it) == levelFilter }
+            if (newestFirst) lines = lines.reversed()
+            lines.joinToString("\n")
+        }
     }
     val dropdownItems = logFiles.map { (fileName, _) -> fileName }
     val selectedLogIndex = logFiles.indexOfFirst { it.first == currentLogFile }.let { index ->
@@ -176,12 +198,15 @@ fun ToolsLogsScreen(
         onConsumed = { error = null }
     )
 
-    suspend fun queryLogFiles(): List<String> {
+    /**
+     * 查询日志文件列表
+     * @return 成功时返回文件名；shell 失败返回 null（调用方应跳过清空以免模块重启期间清空 UI）
+     */
+    suspend fun queryLogFiles(): List<String>? {
         val cmd = "for f in $runDir/*; do [ -f \"\$f\" ] || continue; b=\$(basename \"\$f\"); case \"\$b\" in *.log|*.LOG) echo \"\$b\";; esac; done"
         val result = ShellExecutor.execute(cmd)
-        if (result.exitCode != 0 && result.stdout.isBlank()) {
-            return emptyList()
-        }
+        // shell 失败（进程被 root 管理器 kill、超时、模块重启瞬间的 IPC 问题等）→ null，保留旧列表
+        if (result.exitCode != 0) return null
         return result.stdout
             .lineSequence()
             .map { it.trim() }
@@ -189,12 +214,19 @@ fun ToolsLogsScreen(
             .toList()
     }
 
-    suspend fun queryLogContent(fileName: String): String {
+    /**
+     * 查询日志内容
+     * @return 成功返回文件内容（可能为空）；shell 失败返回 null
+     */
+    suspend fun queryLogContent(fileName: String): String? {
         if (fileName.isBlank()) return ""
         val safeName = fileName.replace("\"", "").replace("'", "")
         val path = "$runDir/$safeName"
         val cmd = "tail -n 600 '$path' 2>/dev/null || true"
-        return ShellExecutor.execute(cmd).stdout
+        val result = ShellExecutor.execute(cmd)
+        // 模块重启瞬间 shell 可能 timeout / IPC 失败 → null，调用方保留旧内容
+        if (result.exitCode != 0) return null
+        return result.stdout
     }
 
     suspend fun deleteLogFile(fileName: String) {
@@ -212,15 +244,25 @@ fun ToolsLogsScreen(
         if (showLoading) loading = true
         error = null
         try {
-            val names = queryLogFiles()
-            logFiles = names.map { it to statusAvailableText }
+            // shell 失败返回 null → 回退为「使用当前已知列表」避免模块重启瞬间清空 UI
+            val names = queryLogFiles() ?: logFiles.map { it.first }
+            if (names != logFiles.map { it.first }) {
+                logFiles = names.map { it to statusAvailableText }
+            }
             val chosen = when {
                 !preferredFile.isNullOrBlank() && preferredFile in names -> preferredFile
                 names.isNotEmpty() -> names.first()
-                else -> ""
+                else -> currentLogFile.ifBlank { "" }
             }
-            currentLogFile = chosen
-            logContent = if (chosen.isBlank()) "" else queryLogContent(chosen)
+            if (chosen != currentLogFile) currentLogFile = chosen
+            if (chosen.isBlank()) {
+                logContent = ""
+            } else {
+                // shell 失败时保留旧内容；显式刷新场景若从未有过内容则置空
+                val fetched = queryLogContent(chosen)
+                if (fetched != null) logContent = fetched
+                else if (logContent.isBlank()) logContent = ""
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -242,7 +284,9 @@ fun ToolsLogsScreen(
         if (showLoading) loading = true
         if (surfaceErrors) error = null
         try {
-            logContent = queryLogContent(currentLogFile)
+            // shell 失败 → 保留上一次成功内容，避免模块重启期间把正文清空
+            val fetched = queryLogContent(currentLogFile)
+            if (fetched != null) logContent = fetched
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -265,11 +309,15 @@ fun ToolsLogsScreen(
     }
 
     fun requestSelectLog(fileName: String) {
+        if (fileName == currentLogFile) return
+        // 切换文件：先清空旧内容避免误读，不翻 loading 旗标——
+        // 交由 LaunchedEffect(currentLogFile) 的实时流自动接管，按钮保持可点击
+        logContent = ""
+        currentLogFile = fileName
         scope.launch {
-            currentLogFile = fileName
             reloadCurrentLog(
                 failureText = failedReadText,
-                showLoading = true,
+                showLoading = false,
                 surfaceErrors = true
             )
         }
@@ -282,11 +330,12 @@ fun ToolsLogsScreen(
             error = null
             try {
                 deleteLogFile(currentLogFile)
-                val names = queryLogFiles()
+                // shell 失败时，用当前已知列表兜底
+                val names = queryLogFiles() ?: logFiles.map { it.first }.filter { it != currentLogFile }
                 logFiles = names.map { it to statusAvailableText }
                 val nextFile = names.firstOrNull().orEmpty()
                 currentLogFile = nextFile
-                logContent = if (nextFile.isBlank()) "" else queryLogContent(nextFile)
+                logContent = if (nextFile.isBlank()) "" else (queryLogContent(nextFile) ?: "")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -298,7 +347,7 @@ fun ToolsLogsScreen(
     }
 
     LaunchedEffect(Unit) {
-        autoRefresh = prefs.getBoolean("logs_auto_refresh", false)
+        autoRefresh = prefs.getBoolean("logs_auto_refresh", true)
         val lastFile = prefs.getString("logs_last_file", null)
         prefsLoaded = true
         refreshLogs(
@@ -320,10 +369,65 @@ fun ToolsLogsScreen(
         }
     }
 
-    LaunchedEffect(autoRefresh, currentLogFile) {
-        if (!autoRefresh || currentLogFile.isBlank()) return@LaunchedEffect
+    // 文件列表自动发现：始终开启，独立于自动刷新开关
+    // 每 ~4s 扫描 run 目录；模块启停/重启瞬间可能短暂为空或 shell 失败，
+    // 用「抖动保护」避免瞬态清空 UI 导致按钮被禁用
+    LaunchedEffect(prefsLoaded) {
+        if (!prefsLoaded) return@LaunchedEffect
+        var consecutiveEmpty = 0
         while (isActive) {
-            delay(1500)
+            delay(4_000)
+            try {
+                val names = queryLogFiles()
+                if (names == null) {
+                    // shell 失败（root 管理器 busy、模块重启 IPC 中断等）→ 跳过，不改 UI
+                    continue
+                }
+                // 真正空：累计 3 次（~12s）再写入，防止模块重启瞬间的一两次空列表清空文件切换按钮
+                if (names.isEmpty()) {
+                    consecutiveEmpty++
+                    if (consecutiveEmpty < 3) continue
+                } else {
+                    consecutiveEmpty = 0
+                }
+                if (names != logFiles.map { it.first }) {
+                    logFiles = names.map { it to statusAvailableText }
+                }
+                when {
+                    currentLogFile.isBlank() && names.isNotEmpty() -> {
+                        currentLogFile = names.first()
+                    }
+                    currentLogFile.isNotBlank() && names.isNotEmpty() && currentLogFile !in names -> {
+                        // 仅当新列表非空且当前文件确实不在其中才切换，避免短暂抖动丢选中
+                        currentLogFile = names.first()
+                    }
+                    currentLogFile.isNotBlank() && names.isEmpty() -> {
+                        // 连续 3 次确认为空才清空内容 + 选中
+                        currentLogFile = ""
+                        logContent = ""
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // 静默失败：显式刷新会暴露错误
+            }
+        }
+    }
+
+    // 自动刷新开关：仅驱动「日志内容实时 tail」。关闭 = 暂停实时内容更新
+    // 文件切换时立即拉取一次（不等 800ms），然后周期轮询
+    LaunchedEffect(autoRefresh, currentLogFile, prefsLoaded) {
+        if (!prefsLoaded || currentLogFile.isBlank()) return@LaunchedEffect
+        // 即时加载：无论 autoRefresh 开关如何，切换文件后必须第一时间拉到内容
+        reloadCurrentLog(
+            failureText = failedReadText,
+            showLoading = false,
+            surfaceErrors = false
+        )
+        if (!autoRefresh) return@LaunchedEffect
+        while (isActive) {
+            delay(800)
             reloadCurrentLog(
                 failureText = failedReadText,
                 showLoading = false,
@@ -345,21 +449,61 @@ fun ToolsLogsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            SmallTopAppBar(
                 title = stringResource(R.string.tools_logs_title),
-                largeTitle = stringResource(R.string.tools_logs_title),
-                subtitle = currentLogFile.ifBlank { stringResource(R.string.tools_logs_no_files) },
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = MiuixIcons.Back,
                             contentDescription = null,
-                            tint = MiuixTheme.colorScheme.onSurface
+                            tint = MiuixTheme.colorScheme.onBackground
                         )
                     }
                 },
                 actions = {
+                    // 日志文件切换（WindowListPopup，锚定在按钮上）—— 不受 loading 影响
+                    Box {
+                        IconButton(
+                            onClick = { if (dropdownItems.isNotEmpty()) showFilePopup = true },
+                            enabled = dropdownItems.isNotEmpty()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Description,
+                                contentDescription = stringResource(R.string.tools_logs_log_file),
+                                tint = if (dropdownItems.isEmpty()) {
+                                    MiuixTheme.colorScheme.onSurfaceSecondary
+                                } else {
+                                    MiuixTheme.colorScheme.onSurface
+                                }
+                            )
+                        }
+                        LogFileSelectorPopup(
+                            show = showFilePopup,
+                            items = dropdownItems,
+                            selectedIndex = selectedLogIndex,
+                            onDismissRequest = { showFilePopup = false },
+                            onSelect = { index ->
+                                showFilePopup = false
+                                val next = logFiles.getOrNull(index)?.first ?: return@LogFileSelectorPopup
+                                requestSelectLog(next)
+                            }
+                        )
+                    }
+                    // 自动刷新开关（仅控制日志内容实时 tail）
+                    IconButton(
+                        onClick = { autoRefresh = !autoRefresh }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Autorenew,
+                            contentDescription = stringResource(R.string.tools_logs_auto_refresh),
+                            tint = if (autoRefresh) {
+                                MiuixTheme.colorScheme.primary
+                            } else {
+                                MiuixTheme.colorScheme.onSurfaceSecondary
+                            }
+                        )
+                    }
                     IconButton(
                         onClick = ::requestRefresh,
                         enabled = !loading
@@ -374,14 +518,15 @@ fun ToolsLogsScreen(
                             }
                         )
                     }
+                    // 删除按钮 —— 仅以"是否有文件"为启用条件，不受 loading 影响
                     IconButton(
                         onClick = { showDeleteConfirm = true },
-                        enabled = currentLogFile.isNotBlank() && !loading
+                        enabled = currentLogFile.isNotBlank()
                     ) {
                         Icon(
                             imageVector = Icons.Filled.DeleteOutline,
                             contentDescription = stringResource(R.string.action_delete),
-                            tint = if (currentLogFile.isBlank() || loading) {
+                            tint = if (currentLogFile.isBlank()) {
                                 MiuixTheme.colorScheme.onSurfaceSecondary
                             } else {
                                 MiuixTheme.colorScheme.onSurface
@@ -403,34 +548,8 @@ fun ToolsLogsScreen(
                 top = innerPadding.calculateTopPadding(),
                 extraBottom = 12.dp
             ),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            item(key = "logs_source_title") {
-                SmallTitle(text = stringResource(R.string.tools_logs_section_source))
-            }
-
-            item(key = "logs_summary_card") {
-                LogsSummaryCard(
-                    runDir = runDir,
-                    currentLogFile = currentLogFile,
-                    autoRefresh = autoRefresh,
-                    lineCount = nonBlankLineCount,
-                    logFiles = logFiles,
-                    dropdownItems = dropdownItems,
-                    selectedLogIndex = selectedLogIndex,
-                    loading = loading,
-                    onLogSelected = { index ->
-                        val next = logFiles.getOrNull(index)?.first ?: return@LogsSummaryCard
-                        requestSelectLog(next)
-                    },
-                    onAutoRefreshChange = { enabled -> autoRefresh = enabled }
-                )
-            }
-
-            item(key = "logs_view_title") {
-                SmallTitle(text = stringResource(R.string.tools_logs_section_view))
-            }
-
             item(key = "logs_view_tabs") {
                 TabRowWithContour(
                     tabs = listOf(
@@ -467,7 +586,8 @@ fun ToolsLogsScreen(
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = if (newestFirst) "最新" else "最早",
+                            text = if (newestFirst) stringResource(R.string.tools_logs_sort_newest)
+                            else stringResource(R.string.tools_logs_sort_oldest),
                             style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.onSurface
                         )
@@ -483,7 +603,7 @@ fun ToolsLogsScreen(
                         HyperFilterChip(
                             selected = levelFilter == null,
                             onClick = { levelFilter = null },
-                            label = "全部"
+                            label = stringResource(R.string.tools_logs_filter_all)
                         )
                         listOf(LogLevel.Error, LogLevel.Warn, LogLevel.Info, LogLevel.Debug).forEach { level ->
                             HyperFilterChip(
@@ -496,7 +616,9 @@ fun ToolsLogsScreen(
                 }
             }
 
-            if (loading) {
+            // 冷启动占位：只在 loading 且「完全没内容」时展示，避免切换时盖掉旧数据
+            val showColdLoading = loading && logContent.isBlank() && moduleEntries.isEmpty()
+            if (showColdLoading) {
                 item(key = "logs_loading") { LogsLoadingCard() }
             } else if (selectedTabIndex == 0) {
                 if (moduleEntries.isEmpty()) {
@@ -506,16 +628,22 @@ fun ToolsLogsScreen(
                 } else {
                     items(
                         items = moduleEntries,
-                        key = { entry -> entry.index }
+                        key = { entry -> entry.key },
+                        contentType = { "moduleLog" }
                     ) { entry ->
-                        ModuleLogCard(entry = entry, fontFamily = logFontFamily)
+                        ModuleLogCard(
+                            entry = entry,
+                            fontFamily = logFontFamily,
+                            paletteOf = logPaletteOf
+                        )
                     }
                 }
             } else {
                 item(key = "logs_detail") {
                     DetailedLogsCard(
                         logContent = filteredLogContent,
-                        logFontFamily = logFontFamily
+                        logFontFamily = logFontFamily,
+                        paletteOf = logPaletteOf
                     )
                 }
             }
@@ -543,61 +671,29 @@ fun ToolsLogsScreen(
 }
 
 @Composable
-private fun LogsSummaryCard(
-    runDir: String,
-    currentLogFile: String,
-    autoRefresh: Boolean,
-    lineCount: Int,
-    logFiles: List<Pair<String, String>>,
-    dropdownItems: List<String>,
-    selectedLogIndex: Int,
-    loading: Boolean,
-    onLogSelected: (Int) -> Unit,
-    onAutoRefreshChange: (Boolean) -> Unit
+private fun LogFileSelectorPopup(
+    show: Boolean,
+    items: List<String>,
+    selectedIndex: Int,
+    onDismissRequest: () -> Unit,
+    onSelect: (Int) -> Unit
 ) {
-    val canToggleAutoRefresh = currentLogFile.isNotBlank()
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp)
+    if (items.isEmpty()) return
+    WindowListPopup(
+        show = show,
+        alignment = PopupPositionProvider.Align.TopEnd,
+        onDismissRequest = onDismissRequest
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // 日志文件选择
-            if (dropdownItems.isNotEmpty()) {
-                WindowDropdownPreference(
-                    title = stringResource(R.string.tools_logs_log_file),
-                    summary = stringResource(
-                        R.string.tools_logs_current_prefix,
-                        currentLogFile,
-                        stringResource(R.string.tools_logs_recent_lines, lineCount)
-                    ),
-                    items = dropdownItems,
-                    selectedIndex = selectedLogIndex,
-                    enabled = !loading,
-                    onSelectedIndexChange = onLogSelected
-                )
-            } else {
-                BasicComponent(
-                    title = stringResource(R.string.tools_logs_log_file),
-                    summary = stringResource(R.string.tools_logs_no_files)
+        ListPopupColumn {
+            items.forEachIndexed { index, label ->
+                DropdownImpl(
+                    text = label,
+                    optionSize = items.size,
+                    isSelected = index == selectedIndex,
+                    onSelectedIndexChange = { onSelect(index) },
+                    index = index
                 )
             }
-
-            LogsPreferenceDivider()
-
-            // 自动刷新开关
-            top.yukonga.miuix.kmp.preference.SwitchPreference(
-                title = stringResource(R.string.tools_logs_auto_refresh),
-                summary = if (autoRefresh) {
-                    stringResource(R.string.tools_logs_auto_refresh_on)
-                } else {
-                    stringResource(R.string.tools_logs_manual_refresh)
-                },
-                checked = autoRefresh,
-                onCheckedChange = { onAutoRefreshChange(it) },
-                enabled = canToggleAutoRefresh
-            )
         }
     }
 }
@@ -605,90 +701,86 @@ private fun LogsSummaryCard(
 @Composable
 private fun ModuleLogCard(
     entry: LogModuleEntry,
-    fontFamily: FontFamily = FontFamily.Monospace
+    fontFamily: FontFamily = FontFamily.Monospace,
+    paletteOf: (LogLevel) -> HomeSemanticColors
 ) {
-    val palette = rememberLogLevelPalette(entry.level)
+    val palette = paletteOf(entry.level)
     val scheme = MiuixTheme.colorScheme
-    val isDark = ThemeManager.shouldUseDarkTheme()
-
-    // 日志消息根据级别着色（Error 红色、Warn 橙色、其他默认色）
-    val messageColor = when (entry.level) {
-        LogLevel.Error -> if (isDark) Color(0xFFFF8A80) else Color(0xFFC62828)
-        LogLevel.Warn -> if (isDark) Color(0xFFFFC46B) else Color(0xFFEF6C00)
-        else -> scheme.onSurface
-    }
+    // cleanMessage 已在后台线程预清洗，直接读取，不做任何主线程计算
+    val cleanMessage = entry.cleanMessage
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 16.dp,
-        insideMargin = PaddingValues(14.dp),
-        colors = CardDefaults.defaultColors(color = scheme.surfaceContainer)
+        cornerRadius = 18.dp,
+        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            // ── 头部行：[级别] 标签 ··· 时间戳 ──
+            // 第一行：[级别徽标] 标签名 ··· 时间戳
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 级别字母徽标（紧凑方块）
+                // 徽标：Monet/主题联动的 container 背景 + onContainer 文字，保证对比度
                 Box(
                     modifier = Modifier
-                        .size(22.dp)
+                        .size(20.dp)
                         .clip(SmoothRoundedCornerShape(6.dp))
-                        .background(palette.badgeContainer),
+                        .background(palette.container),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = entry.level.badgeLetter(),
-                        style = MiuixTheme.textStyles.footnote2,
-                        fontWeight = FontWeight.Bold,
-                        color = palette.badgeContent
+                        style = MiuixTheme.textStyles.footnote2.copy(fontFamily = fontFamily),
+                        fontWeight = FontWeight.SemiBold,
+                        color = palette.onContainer
                     )
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // 标签名
                 Text(
                     text = entry.tag,
-                    style = MiuixTheme.textStyles.body2,
-                    fontWeight = FontWeight.Medium,
+                    style = MiuixTheme.textStyles.body2.copy(fontFamily = fontFamily),
+                    fontWeight = FontWeight.SemiBold,
                     color = scheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
 
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // 时间戳 + 行号
-                Text(
-                    text = buildList {
-                        entry.timestamp?.let(::add)
-                        add("#${entry.index}")
-                    }.joinToString("  "),
-                    style = MiuixTheme.textStyles.footnote2,
-                    color = scheme.onSurfaceSecondary,
-                    maxLines = 1
-                )
+                if (entry.timestamp != null) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = entry.timestamp,
+                        style = MiuixTheme.textStyles.footnote2.copy(fontFamily = fontFamily),
+                        color = scheme.onSurfaceSecondary,
+                        maxLines = 1
+                    )
+                }
             }
 
-            // ── 日志正文（去除已展示的时间戳/级别，等宽/Maple 字体，级别着色） ──
-            val cleanMessage = remember(entry.rawLine) {
-                cleanLogMessage(entry.rawLine)
-            }
+            // 第二行：副信息（#index level）
+            Text(
+                text = "#${entry.index}  ${entry.level.displayName().lowercase()}",
+                style = MiuixTheme.textStyles.footnote2.copy(fontFamily = fontFamily),
+                color = scheme.onSurfaceSecondary
+            )
+
+            // 第三行：日志正文，统一 onSurface 主色
             Text(
                 text = cleanMessage.ifBlank { entry.rawLine },
-                style = MiuixTheme.textStyles.footnote1.copy(
+                style = MiuixTheme.textStyles.body2.copy(
                     fontFamily = fontFamily,
-                    lineHeight = 18.sp
+                    lineHeight = 20.sp
                 ),
-                color = messageColor,
-                modifier = Modifier.fillMaxWidth(),
-                maxLines = 5,
+                color = scheme.onSurface,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
+                maxLines = 4,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -698,15 +790,15 @@ private fun ModuleLogCard(
 @Composable
 private fun DetailedLogsCard(
     logContent: String,
-    logFontFamily: FontFamily
+    logFontFamily: FontFamily,
+    paletteOf: (LogLevel) -> HomeSemanticColors
 ) {
-    val highlightedLog = rememberHighlightedLog(logContent)
+    val highlightedLog = rememberHighlightedLog(logContent, paletteOf)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = 20.dp,
-        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surfaceContainer)
+        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -718,11 +810,12 @@ private fun DetailedLogsCard(
                 color = MiuixTheme.colorScheme.onSurfaceSecondary
             )
 
+            // 代码区：surfaceVariant，对比更柔
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MiuixTheme.colorScheme.background)
+                    .clip(SmoothRoundedCornerShape(16.dp))
+                    .background(MiuixTheme.colorScheme.surfaceVariant)
                     .padding(14.dp)
             ) {
                 if (logContent.isBlank()) {
@@ -753,16 +846,14 @@ private fun LogsLoadingCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = 18.dp,
-        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 18.dp),
-        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surfaceContainer)
+        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 32.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            InfiniteProgressIndicator(modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(12.dp))
+            InfiniteProgressIndicator(modifier = Modifier.size(24.dp))
             Text(
                 text = stringResource(R.string.tools_logs_loading),
                 style = MiuixTheme.textStyles.body2,
@@ -774,187 +865,213 @@ private fun LogsLoadingCard() {
 
 @Composable
 private fun LogsEmptyCard(text: String) {
+    val scheme = MiuixTheme.colorScheme
     Card(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = 18.dp,
-        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 18.dp),
-        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surfaceContainer)
+        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 36.dp)
     ) {
-        Text(
-            text = text,
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurfaceSecondary,
-            modifier = Modifier.fillMaxWidth()
-        )
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // 图标容器
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(SmoothRoundedCornerShape(14.dp))
+                    .background(scheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Notes,
+                    contentDescription = null,
+                    tint = scheme.onSurfaceSecondary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Text(
+                text = text,
+                style = MiuixTheme.textStyles.body2,
+                color = scheme.onSurfaceSecondary
+            )
+        }
     }
 }
 
 @Composable
-private fun LogsStatusBadge(
-    text: String,
-    container: Color,
-    content: Color
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(container)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            style = MiuixTheme.textStyles.footnote1,
-            color = content,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-@Composable
-private fun LogsPreferenceDivider() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .height(0.5.dp)
-            .background(MiuixTheme.colorScheme.dividerLine.copy(alpha = 0.08f))
-    )
-}
-
-@Composable
-private fun rememberHighlightedLog(logContent: String): androidx.compose.ui.text.AnnotatedString {
+private fun rememberHighlightedLog(
+    logContent: String,
+    paletteOf: (LogLevel) -> HomeSemanticColors
+): androidx.compose.ui.text.AnnotatedString {
     val isDark = ThemeManager.shouldUseDarkTheme()
     val mapleFontActive by ThemeManager.mapleFontLogs.collectAsState()
     val mapleLoaded = MapleFontManager.getFontFamily() != null
-    return remember(logContent, isDark, mapleFontActive, mapleLoaded) {
-        val errorColor = if (isDark) Color(0xFFFF8A80) else Color(0xFFC62828)
-        val warnColor = if (isDark) Color(0xFFFFC46B) else Color(0xFFEF6C00)
-        val infoColor = if (isDark) Color(0xFF7FD6A3) else Color(0xFF2E7D32)
-        val debugColor = if (isDark) Color(0xFF8DB9FF) else Color(0xFF1565C0)
-        val defaultColor = if (isDark) Color(0xFFC5CDD8) else Color(0xFF52606D)
+    val empty = remember { androidx.compose.ui.text.AnnotatedString("") }
 
-        // Nerd Font 可用时使用图形图标，否则使用 ASCII 级别标记
-        val hasNerdFont = ThemeManager.mapleFontLogs.value && MapleFontManager.getFontFamily() != null
-        val iconError = if (hasNerdFont) "\uF057" else "E"  // nf-fa-times_circle
-        val iconWarn  = if (hasNerdFont) "\uF071" else "W"  // nf-fa-exclamation_triangle
-        val iconInfo  = if (hasNerdFont) "\uF05A" else "I"  // nf-fa-info_circle
-        val iconDebug = if (hasNerdFont) "\uF188" else "D"  // nf-fa-bug
-        val iconOther = if (hasNerdFont) "\uF15C" else "·"  // nf-fa-file_text
+    // 语义色快照：带进 produceState，保证 Monet/深浅切换即时响应
+    val errorColor = paletteOf(LogLevel.Error).accent
+    val warnColor  = paletteOf(LogLevel.Warn).accent
+    val infoColor  = paletteOf(LogLevel.Info).accent
+    val debugColor = paletteOf(LogLevel.Debug).accent
+    val defaultColor = MiuixTheme.colorScheme.onSurfaceSecondary
 
-        buildAnnotatedString {
-            val lines = logContent.lines()
-            lines.forEachIndexed { index, line ->
-                val level = detectLogLevel(line)
-                val (icon, lineColor) = when (level) {
-                    LogLevel.Error -> iconError to errorColor
-                    LogLevel.Warn  -> iconWarn to warnColor
-                    LogLevel.Info  -> iconInfo to infoColor
-                    LogLevel.Debug -> iconDebug to debugColor
-                    LogLevel.Other -> iconOther to defaultColor
+    // 并行构建 AnnotatedString：按 CPU 核数切分，每段独立协程跑正则+构建，最后合并
+    val result by produceState(
+        empty,
+        logContent, isDark, mapleFontActive, mapleLoaded,
+        errorColor, warnColor, infoColor, debugColor, defaultColor
+    ) {
+        value = withContext(Dispatchers.Default) {
+            val allLines = logContent.lines()
+            if (allLines.isEmpty()) return@withContext empty
+
+            val hasNerdFont = mapleFontActive && mapleLoaded
+            val iconError = if (hasNerdFont) "\uF057" else "E"
+            val iconWarn  = if (hasNerdFont) "\uF071" else "W"
+            val iconInfo  = if (hasNerdFont) "\uF05A" else "I"
+            val iconDebug = if (hasNerdFont) "\uF188" else "D"
+            val iconOther = if (hasNerdFont) "\uF15C" else "\u00B7"
+
+            val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
+            // 行数少时不值得分片（调度开销大于收益）
+            val chunks = if (allLines.size <= 120) {
+                listOf(allLines)
+            } else {
+                val chunkSize = (allLines.size + cores - 1) / cores
+                allLines.chunked(chunkSize)
+            }
+
+            val parts: List<androidx.compose.ui.text.AnnotatedString> = coroutineScope {
+                chunks.map { chunk ->
+                    async {
+                        buildAnnotatedString {
+                            chunk.forEachIndexed { i, line ->
+                                val level = detectLogLevel(line)
+                                val (icon, lineColor) = when (level) {
+                                    LogLevel.Error -> iconError to errorColor
+                                    LogLevel.Warn  -> iconWarn  to warnColor
+                                    LogLevel.Info  -> iconInfo  to infoColor
+                                    LogLevel.Debug -> iconDebug to debugColor
+                                    LogLevel.Other -> iconOther to defaultColor
+                                }
+                                withStyle(SpanStyle(color = lineColor)) { append(icon) }
+                                append(' ')
+                                val cleaned = cleanLogMessage(line)
+                                withStyle(SpanStyle(color = lineColor)) {
+                                    append(cleaned.ifBlank { line })
+                                }
+                                if (i != chunk.lastIndex) append('\n')
+                            }
+                        }
+                    }
+                }.awaitAll()
+            }
+
+            if (parts.size == 1) parts[0] else buildAnnotatedString {
+                parts.forEachIndexed { i, p ->
+                    append(p)
+                    if (i != parts.lastIndex) append('\n')
                 }
-
-                withStyle(SpanStyle(color = lineColor)) {
-                    append(icon)
-                }
-                append(" ")
-
-                // 清洗后的日志消息
-                val cleaned = cleanLogMessage(line)
-                withStyle(SpanStyle(color = lineColor)) {
-                    append(cleaned.ifBlank { line })
-                }
-                if (index != lines.lastIndex) append('\n')
             }
         }
     }
+    return result
 }
 
+/**
+ * 日志级别 → 项目语义色映射（自动适配 Monet + 深/浅模式）
+ *
+ * 必须在屏幕级仅调用一次；600 条日志若各自调用会重复订阅 monetEnabled Flow。
+ * 返回一个仅读取的 lookup 函数供子卡片使用。
+ */
 @Composable
-private fun rememberLogLevelPalette(level: LogLevel): LogLevelPalette {
-    val isDark = ThemeManager.shouldUseDarkTheme()
-    return remember(level, isDark) {
-        when (level) {
-            LogLevel.Error -> if (isDark) {
-                LogLevelPalette(
-                    badgeContainer = Color(0xFF5A2424),
-                    badgeContent = Color(0xFFFFDDD8)
-                )
-            } else {
-                LogLevelPalette(
-                    badgeContainer = Color(0xFFFFE4E1),
-                    badgeContent = Color(0xFFAE2D2D)
-                )
-            }
-
-            LogLevel.Warn -> if (isDark) {
-                LogLevelPalette(
-                    badgeContainer = Color(0xFF5C4120),
-                    badgeContent = Color(0xFFFFE0B4)
-                )
-            } else {
-                LogLevelPalette(
-                    badgeContainer = Color(0xFFFFEED3),
-                    badgeContent = Color(0xFFAA640D)
-                )
-            }
-
-            LogLevel.Info -> if (isDark) {
-                LogLevelPalette(
-                    badgeContainer = Color(0xFF214B33),
-                    badgeContent = Color(0xFFD7F8E3)
-                )
-            } else {
-                LogLevelPalette(
-                    badgeContainer = Color(0xFFE0F3E2),
-                    badgeContent = Color(0xFF246A2A)
-                )
-            }
-
-            LogLevel.Debug -> if (isDark) {
-                LogLevelPalette(
-                    badgeContainer = Color(0xFF223D61),
-                    badgeContent = Color(0xFFDCE8FF)
-                )
-            } else {
-                LogLevelPalette(
-                    badgeContainer = Color(0xFFE2ECFF),
-                    badgeContent = Color(0xFF1453A4)
-                )
-            }
-
-            LogLevel.Other -> if (isDark) {
-                LogLevelPalette(
-                    badgeContainer = Color(0xFF313A45),
-                    badgeContent = Color(0xFFE2E8F0)
-                )
-            } else {
-                LogLevelPalette(
-                    badgeContainer = Color(0xFFE8ECF2),
-                    badgeContent = Color(0xFF4F5C6C)
-                )
+private fun rememberLogLevelPaletteProvider(): (LogLevel) -> HomeSemanticColors {
+    val error = homeDangerColors()
+    val warn  = homeWarningColors()
+    val info  = homeInfoColors()
+    val debug = homeSuccessColors()
+    val other = homeNeutralColors()
+    return remember(error, warn, info, debug, other) {
+        { level ->
+            when (level) {
+                LogLevel.Error -> error
+                LogLevel.Warn  -> warn
+                LogLevel.Info  -> info
+                LogLevel.Debug -> debug
+                LogLevel.Other -> other
             }
         }
     }
 }
 
-private fun parseModuleEntries(
+/** 单行解析中间结果：每行独立计算，可安全并行 */
+private data class LineParsed(
+    val rawLine: String,
+    val cleanMessage: String,
+    val level: LogLevel,
+    val tag: String,
+    val timestamp: String?
+)
+
+private fun parseLine(line: String, fallbackTag: String): LineParsed = LineParsed(
+    rawLine = line,
+    cleanMessage = cleanLogMessage(line),
+    level = detectLogLevel(line),
+    tag = inferLogTag(line, fallbackTag),
+    timestamp = extractTimestamp(line)
+)
+
+/**
+ * 并行解析：per-line 正则无跨行依赖 → 分片并行处理
+ * 最后单线程扫一遍分配 index 与 dedup key（O(n)）
+ */
+private suspend fun parseModuleEntries(
     logContent: String,
     fallbackTag: String
 ): List<LogModuleEntry> {
-    return logContent.lineSequence()
+    val lines = logContent.lineSequence()
         .map { it.trimEnd() }
         .filter { it.isNotBlank() }
-        .mapIndexed { index, line ->
+        .toList()
+    if (lines.isEmpty()) return emptyList()
+
+    // 小规模单线程（调度开销大于收益）；大规模按核数分片并行跑正则
+    val parsed: List<LineParsed> = if (lines.size <= 120) {
+        lines.map { parseLine(it, fallbackTag) }
+    } else {
+        val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
+        val chunkSize = (lines.size + cores - 1) / cores
+        coroutineScope {
+            lines.chunked(chunkSize).map { chunk ->
+                async(Dispatchers.Default) {
+                    chunk.map { parseLine(it, fallbackTag) }
+                }
+            }.awaitAll().flatten()
+        }
+    }
+
+    // 顺序扫描：分配 index + 基于 rawLine 的去重计数（单线程 O(n) 保证顺序）
+    val seen = HashMap<String, Int>(parsed.size)
+    val out = ArrayList<LogModuleEntry>(parsed.size)
+    parsed.forEachIndexed { index, p ->
+        val dup = (seen[p.rawLine] ?: 0) + 1
+        seen[p.rawLine] = dup
+        val entryKey = if (dup == 1) p.rawLine else p.rawLine + "|" + dup
+        out.add(
             LogModuleEntry(
                 index = index + 1,
-                rawLine = line,
-                level = detectLogLevel(line),
-                tag = inferLogTag(line, fallbackTag),
-                timestamp = extractTimestamp(line)
+                key = entryKey,
+                rawLine = p.rawLine,
+                cleanMessage = p.cleanMessage,
+                level = p.level,
+                tag = p.tag,
+                timestamp = p.timestamp
             )
-        }
-        .toList()
+        )
+    }
+    return out
 }
 
 private fun detectLogLevel(line: String): LogLevel {
@@ -968,31 +1085,41 @@ private fun detectLogLevel(line: String): LogLevel {
     }
 }
 
+// ── 预编译正则：避免每行调用时重新编译（600 行 × 8 个正则 → 4800 次 → 0 次）──
+private val TAG_BRACKET_REGEX = Regex("""\[([^\]]+)]""")
+private val TAG_COLON_REGEX   = Regex("""\b([A-Za-z][A-Za-z0-9_.-]{1,24})\b(?=:)""")
+private val TIMESTAMP_REGEX   = Regex("""\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?|\d{2}:\d{2}:\d{2}(?:[.,]\d+)?""")
+private val TIMESTAMP_TRIM_MS_REGEX = Regex("""[.,]\d+$""")
+
+private val CLEAN_TZ_OFFSET_REGEX   = Regex("""^[+-]\d{2}:?\d{2}\s+""")
+private val CLEAN_TIME_EQ_REGEX     = Regex("""^time="[^"]*"\s*""")
+private val CLEAN_DATETIME_REGEX    = Regex("""^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:[+-]\d{2}:?\d{2}|Z)?\s*""")
+private val CLEAN_LEVEL_BRACKET_REGEX = Regex(
+    """^\[(?:info|warn(?:ing)?|error|fatal|debug|trace|inf|wrn|err|dbg|trc)]:?\s*""",
+    RegexOption.IGNORE_CASE
+)
+private val CLEAN_LEVEL_BARE_REGEX = Regex(
+    """^(?:INFO|WARN(?:ING)?|ERROR|FATAL|DEBUG|TRACE|INF|WRN|ERR|DBG|TRC|Info|Warn(?:ing)?|Error|Fatal|Debug|Trace)\s+"""
+)
+private val CLEAN_LEVEL_EQ_REGEX = Regex("""^level=\w+\s*""", RegexOption.IGNORE_CASE)
+private val CLEAN_MSG_EQ_REGEX   = Regex("""^msg="(.*)"$""")
+
 private fun inferLogTag(line: String, fallbackTag: String): String {
-    val bracketTag = Regex("""\[([^\]]+)]""")
-        .find(line)
-        ?.groupValues
-        ?.getOrNull(1)
-        ?.trim()
+    val bracketTag = TAG_BRACKET_REGEX.find(line)
+        ?.groupValues?.getOrNull(1)?.trim()
         ?.takeIf { it.length in 2..36 }
     if (!bracketTag.isNullOrBlank()) return bracketTag
 
-    val colonTag = Regex("""\b([A-Za-z][A-Za-z0-9_.-]{1,24})\b(?=:)""")
-        .find(line)
-        ?.groupValues
-        ?.getOrNull(1)
-        ?.trim()
+    val colonTag = TAG_COLON_REGEX.find(line)
+        ?.groupValues?.getOrNull(1)?.trim()
     if (!colonTag.isNullOrBlank()) return colonTag
 
     return fallbackTag.substringBeforeLast('.').ifBlank { fallbackTag.ifBlank { "Log" } }
 }
 
 private fun extractTimestamp(line: String): String? {
-    // 匹配完整日期时间（含可选毫秒）或纯时间
-    val regex = Regex("""\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?|\d{2}:\d{2}:\d{2}(?:[.,]\d+)?""")
-    val raw = regex.find(line)?.value ?: return null
-    // 截断毫秒，保留到秒：2026-04-08 11:42:29
-    return raw.replace(Regex("""[.,]\d+$"""), "")
+    val raw = TIMESTAMP_REGEX.find(line)?.value ?: return null
+    return raw.replace(TIMESTAMP_TRIM_MS_REGEX, "")
 }
 
 /**
@@ -1001,20 +1128,13 @@ private fun extractTimestamp(line: String): String? {
  */
 private fun cleanLogMessage(rawLine: String): String {
     var s = rawLine
-    // 0. 行首时区偏移：+0800 / -05:00 / +08:00（mihomo 等核心输出格式）
-    s = s.replace(Regex("""^[+-]\d{2}:?\d{2}\s+"""), "")
-    // 1. time="2026-04-08T10:30:43.123+08:00" 结构化时间戳
-    s = s.replace(Regex("""^time="[^"]*"\s*"""), "")
-    // 2. 行首日期时间：2026-04-08 11:05:40 / 2026-04-08T11:05:40.123456+08:00
-    s = s.replace(Regex("""^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:[+-]\d{2}:?\d{2}|Z)?\s*"""), "")
-    // 3. 级别标签（带括号）：[Warning]: / [Info] / [INF] 等
-    s = s.replace(Regex("""^\[(?:info|warn(?:ing)?|error|fatal|debug|trace|inf|wrn|err|dbg|trc)]:?\s*""", RegexOption.IGNORE_CASE), "")
-    // 4. 裸级别词（无括号）：ERROR / WARN / INFO 等（仅匹配全大写或首字母大写，后跟空格）
-    s = s.replace(Regex("""^(?:INFO|WARN(?:ING)?|ERROR|FATAL|DEBUG|TRACE|INF|WRN|ERR|DBG|TRC|Info|Warn(?:ing)?|Error|Fatal|Debug|Trace)\s+"""), "")
-    // 5. level=warn 结构化级别
-    s = s.replace(Regex("""^level=\w+\s*""", RegexOption.IGNORE_CASE), "")
-    // 6. msg="..." 包裹
-    s = s.replace(Regex("""^msg="(.*)"$"""), "$1")
+    s = s.replace(CLEAN_TZ_OFFSET_REGEX, "")
+    s = s.replace(CLEAN_TIME_EQ_REGEX, "")
+    s = s.replace(CLEAN_DATETIME_REGEX, "")
+    s = s.replace(CLEAN_LEVEL_BRACKET_REGEX, "")
+    s = s.replace(CLEAN_LEVEL_BARE_REGEX, "")
+    s = s.replace(CLEAN_LEVEL_EQ_REGEX, "")
+    s = s.replace(CLEAN_MSG_EQ_REGEX, "$1")
     return s.trimStart()
 }
 

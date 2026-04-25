@@ -22,6 +22,11 @@
     <string name="config_editor_discard_changes_title">Discard changes?</string>
     <string name="config_editor_discard_changes_message">You have unsaved changes that will be lost.</string>
     <string name="config_editor_discard">Discard</string>
+    <string name="config_editor_word_wrap">Word Wrap</string>
+    <string name="config_editor_theme_select">Theme</string>
+    <string name="config_editor_theme_auto">Auto</string>
+    <string name="config_editor_theme_downloadable">Downloadable</string>
+    <string name="config_editor_theme_downloading">Downloading…</string>
     <string name="action_apply">Apply</string>
     <string name="action_run">Run</string>
     <string name="action_search">Search</string>
@@ -67,6 +72,11 @@
     <string name="onboarding_tips_body">It is recommended to stop the service before updating.\n\nTools:\n- Update Core / Subscription / WebUI / CNIP: tap the right icon to download updates\n\nSettings:\n- Check for module updates at the module version</string>
     <string name="onboarding_finish">Finish</string>
     <string name="onboarding_continue">Continue</string>
+    <string name="onboarding_setup_complete">Setup complete</string>
+    <string name="onboarding_enter_app">Get Started</string>
+    <string name="onboarding_basic_settings">Basic Settings</string>
+    <string name="onboarding_basic_settings_desc">You can change these later in Settings</string>
+    <string name="onboarding_agree_and_continue">Agree and Continue</string>
     <string name="onboarding_optional_permissions_hint">You can set the following optional permissions later</string>
 
     <!-- Quick Settings / Foreground service -->
@@ -168,6 +178,10 @@
     <string name="home_subscription_total">%1$s Total</string>
     <string name="home_subscription_used_label">Used</string>
     <string name="home_subscription_total_label">Total</string>
+    <string name="home_subscription_remain_badge">Remain %1$d%%</string>
+    <string name="home_speed_upload_label">Upload</string>
+    <string name="home_speed_download_label">Download</string>
+    <string name="home_system_ram_label">RAM</string>
 
     <string name="home_service_status_running">Running</string>
     <string name="home_service_status_unavailable">Unavailable</string>
@@ -201,9 +215,10 @@
     <string name="home_reload_config_success">Reloaded</string>
     <string name="home_reload_config_failed">Reload failed</string>
 
-    <string name="home_uptime_hours_minutes">Uptime · %1$dh %2$dm</string>
-    <string name="home_uptime_minutes">Uptime · %1$dm</string>
-    <string name="home_uptime_less_than_minute">Uptime · &lt;1m</string>
+    <string name="home_uptime_days_hours">%1$dd %2$dh</string>
+    <string name="home_uptime_hours_minutes">%1$dh %2$dmin</string>
+    <string name="home_uptime_minutes">%1$dmin</string>
+    <string name="home_uptime_less_than_minute">&lt;1min</string>
 
     <string name="home_badge_service">SRV</string>
     <string name="home_badge_ip">IP</string>
@@ -279,6 +294,29 @@
     <string name="settings_ui_scale_subtitle">Scale the entire interface (80% - 120%)</string>
     <string name="settings_appearance_more">Other appearance settings</string>
     <string name="settings_appearance_more_subtitle">More visual options</string>
+    <string name="settings_theme_appearance">Theme &amp; Appearance</string>
+    <string name="settings_theme_appearance_subtitle">Colors, effects &amp; visual tweaks</string>
+    <string name="settings_monet">Dynamic Color (Monet)</string>
+    <string name="settings_monet_subtitle">Generate theme colors dynamically</string>
+    <string name="settings_key_color">Theme color</string>
+    <string name="settings_key_color_default">Default</string>
+    <string name="settings_color_style">Palette style</string>
+    <string name="settings_color_spec">Color spec</string>
+    <string name="color_red">Red</string>
+    <string name="color_pink">Pink</string>
+    <string name="color_purple">Purple</string>
+    <string name="color_deep_purple">Deep Purple</string>
+    <string name="color_indigo">Indigo</string>
+    <string name="color_blue">Blue</string>
+    <string name="color_cyan">Cyan</string>
+    <string name="color_teal">Teal</string>
+    <string name="color_green">Green</string>
+    <string name="color_yellow">Yellow</string>
+    <string name="color_amber">Amber</string>
+    <string name="color_orange">Orange</string>
+    <string name="color_brown">Brown</string>
+    <string name="color_blue_grey">Blue Grey</string>
+    <string name="color_sakura">Sakura</string>
     <string name="settings_language">Language</string>
     <string name="settings_language_subtitle">App language</string>
 
@@ -566,8 +604,8 @@
     <string name="tools_logs_loading">Loading logs...</string>
     <string name="tools_logs_back_compact">&lt; Back</string>
     <string name="tools_logs_auto_refresh">Auto refresh</string>
-    <string name="tools_logs_auto_refresh_on">Auto refresh ON</string>
-    <string name="tools_logs_manual_refresh">Manual refresh</string>
+    <string name="tools_logs_auto_refresh_on">Log content is updating in real time</string>
+    <string name="tools_logs_manual_refresh">Live updates paused, manual content refresh only</string>
     <string name="tools_logs_current_prefix">Current: %1$s • %2$s</string>
     <string name="tools_logs_failed_load">Failed to load logs</string>
     <string name="tools_logs_failed_read">Failed to read log</string>
@@ -586,9 +624,12 @@
     <string name="tools_logs_live">Live</string>
     <string name="tools_logs_static">Static</string>
     <string name="tools_logs_no_content">No log content</string>
-    <string name="tools_logs_detail_hint">Supports text selection and still follows the log font setting.</string>
+    <string name="tools_logs_detail_hint">Supports text selection</string>
     <string name="tools_logs_delete_dialog_title">Delete log file?</string>
     <string name="tools_logs_delete_dialog_body">This will permanently delete %1$s from %2$s.</string>
+    <string name="tools_logs_sort_newest">Newest</string>
+    <string name="tools_logs_sort_oldest">Oldest</string>
+    <string name="tools_logs_filter_all">All</string>
 
     <!-- Tools / Config -->
     <string name="tools_config_back_compact">&lt; Back</string>
@@ -721,6 +762,39 @@
     <string name="bottomsheet_net_speed_details">Details</string>
     <string name="bottomsheet_net_speed_fastest_download">Fastest download</string>
     <string name="bottomsheet_net_speed_fastest_upload">Fastest upload</string>
+
+    <string name="net_speed_active">Active</string>
+    <string name="net_speed_closed">Closed</string>
+    <string name="net_speed_no_active_connections">No active connections</string>
+    <string name="net_speed_closed_count">%1$d connections closed this session</string>
+    <string name="net_speed_no_closed_connections">No closed connections</string>
+    <string name="net_speed_close_all">Close All</string>
+    <string name="net_speed_total_traffic">Total Traffic</string>
+    <string name="net_speed_fastest_down">Fastest ↓</string>
+    <string name="net_speed_fastest_up">Fastest ↑</string>
+    <string name="net_speed_connections">%1$d connections</string>
+    <string name="net_speed_search_hint">Search host…</string>
+    <string name="net_speed_sort_traffic">By traffic</string>
+    <string name="net_speed_sort_time">By time</string>
+    <string name="net_speed_sort_host">By host</string>
+    <string name="net_speed_detail_visual">Visual</string>
+    <string name="net_speed_detail_raw">Raw</string>
+    <string name="net_speed_detail_host">Host</string>
+    <string name="net_speed_detail_destination">Destination</string>
+    <string name="net_speed_detail_source">Source</string>
+    <string name="net_speed_detail_network">Network</string>
+    <string name="net_speed_detail_type">Type</string>
+    <string name="net_speed_detail_rule">Rule</string>
+    <string name="net_speed_detail_chains">Proxy Chain</string>
+    <string name="net_speed_detail_download">Download</string>
+    <string name="net_speed_detail_upload">Upload</string>
+    <string name="net_speed_detail_start">Start Time</string>
+    <string name="net_speed_detail_process">Process</string>
+    <string name="net_speed_detail_geo">GeoIP</string>
+    <string name="net_speed_detail_status">Status</string>
+    <string name="net_speed_detail_status_active">Active</string>
+    <string name="net_speed_detail_status_closed">Closed</string>
+    <string name="net_speed_detail_sniff_host">Sniff Host</string>
 
     <string name="bottomsheet_subscription_go_tools">Go to Tools / Subscription to configure</string>
     <string name="bottomsheet_subscription_none">No subscriptions</string>

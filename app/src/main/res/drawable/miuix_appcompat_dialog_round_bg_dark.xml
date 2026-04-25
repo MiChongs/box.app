@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list>
+    <item>
+        <fan.smooth.SmoothContainerDrawable2 xmlns:android="http://schemas.android.com/apk/res/android"
+            android:radius="@dimen/miuix_appcompat_dialog_bg_corner_radius">
+            <child>
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/miuix_appcompat_transparent" />
+                    <padding
+                        android:bottom="@dimen/miuix_appcompat_dialog_border_padding"
+                        android:left="@dimen/miuix_appcompat_dialog_border_padding"
+                        android:right="@dimen/miuix_appcompat_dialog_border_padding"
+                        android:top="@dimen/miuix_appcompat_dialog_border_padding" />
+                </shape>
+            </child>
+        </fan.smooth.SmoothContainerDrawable2>
+    </item>
+    <item>
+        <fan.smooth.SmoothContainerDrawable2 xmlns:android="http://schemas.android.com/apk/res/android"
+            android:radius="@dimen/miuix_appcompat_dialog_bg_corner_radius">
+            <child>
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/miuix_appcompat_dialog_default_bg_color_dark" />
+                </shape>
+            </child>
+        </fan.smooth.SmoothContainerDrawable2>
+    </item>
+</layer-list>

@@ -1,85 +1,66 @@
 package com.box.app.ui.screens.tools
 
+import android.graphics.Typeface
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.width
-import com.kyant.shapes.Capsule
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.selection.LocalTextSelectionColors
-import androidx.compose.foundation.text.selection.TextSelectionColors
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.WrapText
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
 import com.box.app.R
 import com.box.app.data.repo.ConfigRepository
 import com.box.app.ui.components.ErrorToast
-import com.box.app.ui.components.LiquidGlassButton
-import com.box.app.ui.components.LiquidGlassIconButton
-import com.box.app.ui.components.LiquidGlassTextFieldPill
-import com.box.app.ui.components.LocalLiquidBackdrop
 import com.box.app.ui.components.systemNavBarPadding
-import com.box.app.ui.theme.appAccentColor
+import com.box.app.ui.miuix.HyperDialog
+import com.box.app.ui.miuix.HyperTextField
 import com.box.app.ui.theme.AppColors
+import com.box.app.ui.theme.appAccentColor
 import com.box.app.ui.theme.appColors
 import com.box.app.ui.theme.appErrorColor
+import com.box.app.utils.EditorThemeManager
+import com.box.app.utils.MapleFontManager
 import com.box.app.utils.ThemeManager
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme
 import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
@@ -87,11 +68,31 @@ import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.EditorSearcher
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
+import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowListPopup
+import java.io.File
+
+// ─── 编辑器文字大小（sp） ──
+private const val EDITOR_TEXT_SIZE_SP = 14f
+private const val EDITOR_LINE_NUMBER_SIZE_SP = 11f
 
 @Composable
 fun ConfigEditorScreen(
     filePath: String,
+    onNavVisibilityChange: (Boolean) -> Unit,
     onBack: () -> Unit
 ) {
     val c = appColors()
@@ -99,93 +100,93 @@ fun ConfigEditorScreen(
     val scope = rememberCoroutineScope()
     val isDark = ThemeManager.shouldUseDarkTheme()
     val accent = appAccentColor()
-    val danger = appErrorColor()
     val accentArgb = accent.toArgb()
+    val scheme = MiuixTheme.colorScheme
 
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
+    // ── Maple 字体 ──
+    val mapleFontEnabled by ThemeManager.mapleFontEditor.collectAsState()
+    val mapleTypeface = remember(mapleFontEnabled) {
+        if (mapleFontEnabled) {
+            val fontFile = File(context.filesDir, "maple_font/MapleMono-NF-CN-Regular.ttf")
+            if (fontFile.exists()) runCatching { Typeface.createFromFile(fontFile) }.getOrNull()
+            else null
+        } else null
+    }
+
+    // ── 主题选择 ──
+    val selectedThemeName by EditorThemeManager.selectedTheme.collectAsState()
+    var showThemePopup by remember { mutableStateOf(false) }
+    var showOverflow by remember { mutableStateOf(false) }
+
+    // ── 隐藏导航栏 ──
+    LaunchedEffect(Unit) { onNavVisibilityChange(false) }
+
+    // ── 文件状态 ──
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
-
-    ErrorToast(
-        message = error,
-        onConsumed = { error = null }
-    )
-
     var original by remember { mutableStateOf("") }
     var text by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
 
+    ErrorToast(message = error, onConsumed = { error = null })
+
+    // ── 编辑器偏好 ──
     val wordWrapPrefs = remember {
         context.getSharedPreferences("config_editor_prefs", android.content.Context.MODE_PRIVATE)
     }
     val initialWordWrap = remember { wordWrapPrefs.getBoolean("word_wrap", true) }
     var wordWrap by remember { mutableStateOf(initialWordWrap) }
 
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedMatchIndex by remember { mutableStateOf(0) }
-    var searchExpanded by remember { mutableStateOf(false) }
-
-    var lastNonBlankQuery by remember { mutableStateOf<String?>(null) }
-
-    var showConfirmBack by remember { mutableStateOf(false) }
-
-    var editorRef by remember { mutableStateOf<CodeEditor?>(null) }
-
-    var applyTextToken by remember { mutableStateOf(0) }
-
-    val liquidBackdrop = rememberLayerBackdrop()
-
-    val topControlsInset =
-        WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
-            56.dp + if (searchExpanded) 52.dp else 0.dp
-
     LaunchedEffect(wordWrap) {
         wordWrapPrefs.edit().putBoolean("word_wrap", wordWrap).apply()
     }
 
-    fun hasChanges(): Boolean = text != original
+    // ── 搜索状态 ──
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedMatchIndex by remember { mutableStateOf(0) }
+    var searchExpanded by remember { mutableStateOf(false) }
+    var lastNonBlankQuery by remember { mutableStateOf<String?>(null) }
 
+    // ── 对话框 ──
+    var showConfirmBack by remember { mutableStateOf(false) }
+
+    // ── 编辑器引用 ──
+    var editorRef by remember { mutableStateOf<CodeEditor?>(null) }
+    var applyTextToken by remember { mutableStateOf(0) }
+
+    // ── 文件名 ──
+    val fileName = filePath.substringAfterLast('/')
+
+    fun hasChanges(): Boolean = text != original
     fun handleBack() {
-        if (hasChanges()) {
-            showConfirmBack = true
-        } else {
-            onBack()
-        }
+        if (hasChanges()) showConfirmBack = true else onBack()
     }
 
+    // ── 搜索逻辑 ──
     val matches by remember(text, searchQuery) {
         derivedStateOf {
             val q = searchQuery.trim()
             if (q.isEmpty()) return@derivedStateOf emptyList<IntRange>()
-            val hay = text
-            val needle = q
             val out = ArrayList<IntRange>()
             var start = 0
-            while (start <= hay.length) {
-                val idx = hay.indexOf(needle, startIndex = start, ignoreCase = true)
+            while (start <= text.length) {
+                val idx = text.indexOf(q, startIndex = start, ignoreCase = true)
                 if (idx < 0) break
-                out.add(idx until (idx + needle.length))
-                start = idx + needle.length
+                out.add(idx until (idx + q.length))
+                start = idx + q.length
             }
             out
         }
     }
 
     fun indexToLineCol(source: String, index: Int): Pair<Int, Int> {
-        var line = 0
-        var col = 0
-        val end = index.coerceIn(0, source.length)
-        for (i in 0 until end) {
-            val ch = source[i]
-            if (ch == '\n') {
-                line += 1
-                col = 0
-            } else {
-                col += 1
-            }
+        var line = 0; var col = 0
+        for (i in 0 until index.coerceIn(0, source.length)) {
+            if (source[i] == '\n') { line++; col = 0 } else col++
         }
         return line to col
     }
@@ -193,465 +194,253 @@ fun ConfigEditorScreen(
     fun jumpToMatch(targetIndex: Int) {
         val ed = editorRef ?: return
         if (matches.isEmpty()) return
-        val safeIndex = targetIndex.coerceIn(0, matches.lastIndex)
-        val range = matches[safeIndex]
-        val startIndex = range.first
-        val endExclusive = (range.last + 1).coerceIn(0, text.length)
-        val (startLine, startCol) = indexToLineCol(text, startIndex)
-        val (endLine, endCol) = indexToLineCol(text, endExclusive)
-        runCatching { ed.setSelectionRegion(startLine, startCol, endLine, endCol, SelectionChangeEvent.CAUSE_SEARCH) }
-    }
-
-    fun scrollToMatch(targetIndex: Int) {
-        val ed = editorRef ?: return
-        if (matches.isEmpty()) return
-        val safeIndex = targetIndex.coerceIn(0, matches.lastIndex)
-        val range = matches[safeIndex]
-        val startIndex = range.first
-        val (startLine, startCol) = indexToLineCol(text, startIndex)
-
-        // Try to scroll without affecting cursor/selection.
-        // Prefer CodeEditor.ensurePositionVisible(line, column) when available.
-        val ensured = runCatching {
-            val m = ed.javaClass.methods.firstOrNull {
-                it.name == "ensurePositionVisible" && it.parameterTypes.size == 2 &&
-                    it.parameterTypes[0] == Int::class.javaPrimitiveType &&
-                    it.parameterTypes[1] == Int::class.javaPrimitiveType
-            }
-            if (m != null) {
-                m.isAccessible = true
-                m.invoke(ed, startLine, startCol)
-                true
-            } else {
-                false
-            }
-        }.getOrDefault(false)
-
-        // If we can't scroll without affecting cursor/selection, do nothing.
-        // Search highlight is still handled by editor.searcher.search(...)
-    }
-
-    BackHandler {
-        handleBack()
-    }
-
-    LaunchedEffect(isDark) {
-        editorRef?.let { ed ->
-            applyTextMate(ed, filePath, isDark, c, accentArgb)
-        }
-    }
-
-    LaunchedEffect(filePath) {
-        loading = true
-        error = null
-        ConfigRepository.warmUpShell()
-        val res = ConfigRepository.readFile(filePath)
-        if (res.error != null) {
-            error = res.error
-            loading = false
-        } else {
-            val content = res.data.orEmpty()
-            original = content
-            text = content
-            applyTextToken += 1
-            loading = false
-        }
-    }
-
-    if (showConfirmBack) {
-        AlertDialog(
-            onDismissRequest = { showConfirmBack = false },
-            containerColor = c.card,
-            titleContentColor = c.textPrimary,
-            textContentColor = c.textSecondary,
-            title = { Text(text = stringResource(R.string.config_editor_discard_changes_title)) },
-            text = { Text(text = stringResource(R.string.config_editor_discard_changes_message)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showConfirmBack = false
-                        onBack()
-                    }
-                ) {
-                    Text(text = stringResource(R.string.config_editor_discard), color = danger)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showConfirmBack = false }) {
-                    Text(text = stringResource(R.string.action_cancel), color = c.textPrimary)
-                }
-            }
-        )
-    }
-
-    LaunchedEffect(matches.size) {
-        if (matches.isEmpty()) {
-            selectedMatchIndex = 0
-        } else {
-            selectedMatchIndex = selectedMatchIndex.coerceIn(0, matches.lastIndex)
-        }
-    }
-
-    LaunchedEffect(searchQuery, matches.size, editorRef) {
-        val q = searchQuery.trim()
-        if (q.isBlank()) {
-            lastNonBlankQuery = null
-            return@LaunchedEffect
-        }
-        if (matches.isEmpty()) return@LaunchedEffect
-
-        if (lastNonBlankQuery != q) {
-            lastNonBlankQuery = q
-            selectedMatchIndex = 0
-            scrollToMatch(0)
-        }
+        val range = matches[targetIndex.coerceIn(0, matches.lastIndex)]
+        val (sl, sc) = indexToLineCol(text, range.first)
+        val (el, ec) = indexToLineCol(text, (range.last + 1).coerceIn(0, text.length))
+        runCatching { ed.setSelectionRegion(sl, sc, el, ec, SelectionChangeEvent.CAUSE_SEARCH) }
     }
 
     fun applySearch() {
         val ed = editorRef ?: return
-        val q = searchQuery
-        if (q.isBlank()) {
-            runCatching { ed.searcher.stopSearch() }
-        } else {
-            val options = EditorSearcher.SearchOptions(true, true)
-            runCatching { ed.searcher.search(q, options) }
-        }
+        if (searchQuery.isBlank()) runCatching { ed.searcher.stopSearch() }
+        else runCatching { ed.searcher.search(searchQuery, EditorSearcher.SearchOptions(true, true)) }
     }
 
     fun clearSearch() {
-        searchQuery = ""
-        selectedMatchIndex = 0
-        lastNonBlankQuery = null
+        searchQuery = ""; selectedMatchIndex = 0; lastNonBlankQuery = null
         runCatching { editorRef?.searcher?.stopSearch() }
     }
 
-    LaunchedEffect(editorRef, searchQuery, text) {
-        applySearch()
+    /** 应用编辑器样式（字体、大小、视觉属性） */
+    fun applyEditorStyle(editor: CodeEditor) {
+        editor.setTextSize(EDITOR_TEXT_SIZE_SP)
+        editor.setLineSpacingMultiplier(1.15f)
+        // 字体
+        val tf = mapleTypeface ?: Typeface.MONOSPACE
+        editor.setTypefaceText(tf)
+        editor.setTypefaceLineNumber(tf)
+        // 视觉属性
+        editor.setHighlightCurrentLine(true)
+        editor.setLineNumberEnabled(true)
+        editor.setCursorAnimationEnabled(true)
+        editor.setScrollBarEnabled(true)
+        editor.setDividerWidth(
+            editor.context.resources.displayMetrics.density * 0.8f
+        )
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            
-    ) {
+    // ── BackHandler ──
+    BackHandler { handleBack() }
+
+    // ── 主题/字体切换时重新应用 ──
+    LaunchedEffect(isDark, selectedThemeName, mapleTypeface) {
+        editorRef?.let { ed ->
+            val themeName = EditorThemeManager.resolveThemeName(isDark)
+            applyTextMate(ed, filePath, themeName, c, accentArgb)
+            applyEditorStyle(ed)
+        }
+    }
+
+    // ── 加载文件 ──
+    LaunchedEffect(filePath) {
+        loading = true; error = null
+        ConfigRepository.warmUpShell()
+        val res = ConfigRepository.readFile(filePath)
+        if (res.error != null) { error = res.error; loading = false }
+        else {
+            val content = res.data.orEmpty()
+            original = content; text = content; applyTextToken += 1; loading = false
+        }
+    }
+
+    // ── 搜索响应 ──
+    LaunchedEffect(matches.size) {
+        selectedMatchIndex = if (matches.isEmpty()) 0 else selectedMatchIndex.coerceIn(0, matches.lastIndex)
+    }
+    LaunchedEffect(searchQuery, matches.size, editorRef) {
+        val q = searchQuery.trim()
+        if (q.isBlank()) { lastNonBlankQuery = null; return@LaunchedEffect }
+        if (matches.isEmpty()) return@LaunchedEffect
+        if (lastNonBlankQuery != q) { lastNonBlankQuery = q; selectedMatchIndex = 0 }
+    }
+    LaunchedEffect(editorRef, searchQuery, text) { applySearch() }
+    LaunchedEffect(searchExpanded) {
+        if (searchExpanded) { delay(80); runCatching { focusRequester.requestFocus() }; keyboardController?.show() }
+        else { keyboardController?.hide(); focusManager.clearFocus(force = true) }
+    }
+
+    // ── 未保存确认对话框 ──
+    HyperDialog(
+        show = showConfirmBack,
+        onDismissRequest = { showConfirmBack = false },
+        title = stringResource(R.string.config_editor_discard_changes_title),
+        summary = stringResource(R.string.config_editor_discard_changes_message),
+        confirmText = stringResource(R.string.config_editor_discard),
+        onConfirm = { showConfirmBack = false; onBack() },
+        dismissText = stringResource(R.string.action_cancel),
+        onDismiss = { showConfirmBack = false }
+    )
+
+    // ── 主题选择弹窗 ──
+    if (showThemePopup) {
+        EditorThemePickerDialog(
+            isDark = isDark,
+            currentTheme = selectedThemeName,
+            onSelectTheme = { name ->
+                EditorThemeManager.setSelectedTheme(context, name)
+                showThemePopup = false
+            },
+            onDismiss = { showThemePopup = false }
+        )
+    }
+
+    // ── 主界面 ──
+    Scaffold(
+        topBar = {
+            SmallTopAppBar(
+                title = fileName,
+                navigationIcon = {
+                    IconButton(onClick = { handleBack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = scheme.onSurface)
+                    }
+                },
+                actions = {
+                    // 搜索切换
+                    IconButton(onClick = {
+                        searchExpanded = !searchExpanded
+                        if (!searchExpanded) clearSearch()
+                    }) {
+                        Icon(Icons.Filled.Search, stringResource(R.string.config_editor_search_hint),
+                            tint = if (searchExpanded) scheme.primary else scheme.onSurface)
+                    }
+                    // 保存
+                    val saveEnabled = hasChanges() && !saving && !loading
+                    IconButton(
+                        onClick = {
+                            if (saving || loading || !hasChanges()) return@IconButton
+                            saving = true
+                            scope.launch {
+                                val saveRes = ConfigRepository.writeFile(filePath, text)
+                                if (saveRes.error != null) error = saveRes.error else original = text
+                                saving = false
+                            }
+                        },
+                        enabled = saveEnabled
+                    ) {
+                        Icon(Icons.Filled.Save, "Save",
+                            tint = if (saveEnabled) scheme.primary else scheme.onSurfaceSecondary)
+                    }
+                    // 溢出菜单
+                    Box {
+                        IconButton(onClick = { showOverflow = true }) {
+                            Icon(Icons.Filled.MoreVert, null, tint = scheme.onSurface)
+                        }
+                        EditorOverflowPopup(
+                            show = showOverflow,
+                            onDismissRequest = { showOverflow = false },
+                            wordWrap = wordWrap,
+                            onToggleWordWrap = { wordWrap = !wordWrap },
+                            onSelectTheme = { showOverflow = false; showThemePopup = true }
+                        )
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = topControlsInset)
-                .systemNavBarPadding()
-                .imePadding()
+                .padding(top = innerPadding.calculateTopPadding())
         ) {
-            Column(
-                modifier = Modifier
+            // ── 可折叠搜索栏 ──
+            AnimatedVisibility(
+                visible = searchExpanded,
+                enter = fadeIn(tween(140)) + expandVertically(tween(180)),
+                exit = fadeOut(tween(110)) + shrinkVertically(tween(160))
+            ) {
+                val counter = remember(searchQuery, matches, selectedMatchIndex) {
+                    if (searchQuery.isBlank()) null
+                    else if (matches.isEmpty()) "0/0"
+                    else "${selectedMatchIndex + 1}/${matches.size}"
+                }
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    HyperTextField(
+                        value = searchQuery, onValueChange = { searchQuery = it },
+                        modifier = Modifier.weight(1f).focusRequester(focusRequester),
+                        label = stringResource(R.string.config_editor_search_hint),
+                        singleLine = true,
+                        trailingIcon = if (searchQuery.isNotBlank()) { {
+                            IconButton(onClick = { clearSearch(); runCatching { focusRequester.requestFocus() }; keyboardController?.show() }) {
+                                Icon(Icons.Filled.Close, null, tint = scheme.onSurfaceSecondary)
+                            }
+                        } } else null
+                    )
+                    if (!counter.isNullOrBlank()) {
+                        Text(counter, style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceSecondary)
+                    }
+                    IconButton(
+                        onClick = {
+                            if (searchQuery.isBlank() || matches.isEmpty()) return@IconButton
+                            selectedMatchIndex = if (selectedMatchIndex - 1 < 0) matches.lastIndex else selectedMatchIndex - 1
+                            jumpToMatch(selectedMatchIndex)
+                        },
+                        enabled = searchQuery.isNotBlank()
+                    ) { Icon(Icons.Filled.KeyboardArrowUp, "Previous", tint = if (searchQuery.isNotBlank()) scheme.onSurface else scheme.onSurfaceSecondary) }
+                    IconButton(
+                        onClick = {
+                            if (searchQuery.isBlank() || matches.isEmpty()) return@IconButton
+                            selectedMatchIndex = (selectedMatchIndex + 1) % matches.size
+                            jumpToMatch(selectedMatchIndex)
+                        },
+                        enabled = searchQuery.isNotBlank()
+                    ) { Icon(Icons.Filled.KeyboardArrowDown, "Next", tint = if (searchQuery.isNotBlank()) scheme.onSurface else scheme.onSurfaceSecondary) }
+                }
+            }
+
+            // ── 编辑器区域 ──
+            Box(
+                Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .systemNavBarPadding()
+                    .imePadding()
             ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    var lastAppliedToken by remember { mutableStateOf(-1) }
-                    AndroidView(
-                        factory = { ctx ->
-                            CodeEditor(ctx).also { editor ->
-                                editorRef = editor
-                                editor.setWordwrap(wordWrap)
-                                editor.setText(text)
-                                lastAppliedToken = applyTextToken
-                                applyTextMate(editor, filePath, isDark, c, accentArgb)
-                                editor.subscribeAlways(io.github.rosemoe.sora.event.ContentChangeEvent::class.java) {
-                                    val cur = editor.text.toString()
-                                    if (cur != text) {
-                                        text = cur
-                                    }
-                                }
-                            }
-                        },
-                        update = { editor ->
+                var lastAppliedToken by remember { mutableStateOf(-1) }
+                AndroidView(
+                    factory = { ctx ->
+                        CodeEditor(ctx).also { editor ->
                             editorRef = editor
                             editor.setWordwrap(wordWrap)
-                            if (!loading && lastAppliedToken != applyTextToken) {
-                                editor.setText(text)
-                                lastAppliedToken = applyTextToken
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .layerBackdrop(liquidBackdrop)
-                    )
-
-                    if (loading) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                ,
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                CircularProgressIndicator(color = accent)
-                                Text(
-                                    text = "Loading file...",
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = c.textSecondary
-                                )
+                            editor.setText(text)
+                            lastAppliedToken = applyTextToken
+                            val themeName = EditorThemeManager.resolveThemeName(isDark)
+                            applyTextMate(editor, filePath, themeName, c, accentArgb)
+                            applyEditorStyle(editor)
+                            editor.subscribeAlways(io.github.rosemoe.sora.event.ContentChangeEvent::class.java) {
+                                val cur = editor.text.toString()
+                                if (cur != text) text = cur
                             }
                         }
-                    }
-                }
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(start = 20.dp, top = 8.dp, end = 20.dp)
-                .fillMaxWidth()
-        ) {
-            val selectedTint = if (isDark) Color(0xFF2B2F37) else Color(0xFFE3E6EA)
-            val tint = selectedTint.copy(alpha = if (isDark) 0.22f else 0.30f)
-
-            CompositionLocalProvider(LocalLiquidBackdrop provides liquidBackdrop) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        LiquidGlassButton(
-                            onClick = { handleBack() },
-                            backdrop = liquidBackdrop,
-                            surfaceColor = tint
-                        ) {
-                            Text(
-                                text = stringResource(R.string.tools_config_back_compact),
-                                color = c.textPrimary,
-                                style = MiuixTheme.textStyles.button,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                    },
+                    update = { editor ->
+                        editorRef = editor
+                        editor.setWordwrap(wordWrap)
+                        if (!loading && lastAppliedToken != applyTextToken) {
+                            editor.setText(text)
+                            lastAppliedToken = applyTextToken
                         }
-
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            LiquidGlassIconButton(
-                                onClick = {
-                                    searchExpanded = !searchExpanded
-                                    if (!searchExpanded) {
-                                        clearSearch()
-                                    }
-                                },
-                                backdrop = liquidBackdrop,
-                                surfaceColor = tint
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Search,
-                                    contentDescription = stringResource(R.string.config_editor_search_hint),
-                                    tint = if (searchExpanded) accent else c.textPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-
-                            LiquidGlassIconButton(
-                                onClick = { wordWrap = !wordWrap },
-                                backdrop = liquidBackdrop,
-                                surfaceColor = tint
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.WrapText,
-                                    contentDescription = "Toggle wrap",
-                                    tint = if (wordWrap) accent else c.textPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-
-                            val saveEnabled = hasChanges() && !saving && !loading
-                            LiquidGlassIconButton(
-                                onClick = {
-                                    if (saving || loading || !hasChanges()) return@LiquidGlassIconButton
-                                    saving = true
-                                    scope.launch {
-                                        val saveRes = ConfigRepository.writeFile(filePath, text)
-                                        if (saveRes.error != null) {
-                                            error = saveRes.error
-                                        } else {
-                                            original = text
-                                        }
-                                        saving = false
-                                    }
-                                },
-                                enabled = saveEnabled,
-                                backdrop = liquidBackdrop,
-                                surfaceColor = tint
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Save,
-                                    contentDescription = "Save",
-                                    tint = if (saveEnabled) c.textPrimary else c.textSecondary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    LaunchedEffect(searchExpanded) {
-                        if (searchExpanded) {
-                            kotlinx.coroutines.delay(80)
-                            runCatching { focusRequester.requestFocus() }
-                            keyboardController?.show()
-                        } else {
-                            keyboardController?.hide()
-                            focusManager.clearFocus(force = true)
-                        }
-                    }
-
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = searchExpanded,
-                        enter = androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(durationMillis = 140)) +
-                            androidx.compose.animation.expandVertically(animationSpec = androidx.compose.animation.core.tween(durationMillis = 180)),
-                        exit = androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(durationMillis = 110)) +
-                            androidx.compose.animation.shrinkVertically(animationSpec = androidx.compose.animation.core.tween(durationMillis = 160))
-                    ) {
-                        val counter = remember(searchQuery, matches, selectedMatchIndex) {
-                            if (searchQuery.isBlank()) null
-                            else if (matches.isEmpty()) "0/0"
-                            else "${selectedMatchIndex + 1}/${matches.size}"
-                        }
-
-                        val selectionColors = remember(accent) {
-                            TextSelectionColors(
-                                handleColor = accent,
-                                backgroundColor = accent.copy(alpha = 0.28f)
-                            )
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
-                                LiquidGlassTextFieldPill(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(44.dp),
-                                    backdrop = liquidBackdrop,
-                                    surfaceColor = tint
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(horizontal = 14.dp)
-                                    ) {
-                                        if (searchQuery.isBlank()) {
-                                            Text(
-                                                text = stringResource(R.string.config_editor_search_hint),
-                                                style = MiuixTheme.textStyles.button,
-                                                color = c.textSecondary,
-                                                modifier = Modifier.align(Alignment.CenterStart)
-                                            )
-                                        }
-
-                                        Row(
-                                            modifier = Modifier.fillMaxSize(),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            BasicTextField(
-                                                value = searchQuery,
-                                                onValueChange = { searchQuery = it },
-                                                singleLine = true,
-                                                cursorBrush = SolidColor(accent),
-                                                textStyle = TextStyle(
-                                                    color = c.textPrimary,
-                                                    fontSize = MiuixTheme.textStyles.button.fontSize,
-                                                    fontWeight = MiuixTheme.textStyles.button.fontWeight
-                                                ),
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .focusRequester(focusRequester)
-                                            )
-
-                                            androidx.compose.animation.AnimatedVisibility(
-                                                visible = searchQuery.isNotBlank(),
-                                                enter = androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(durationMillis = 90)),
-                                                exit = androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(durationMillis = 90))
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(28.dp)
-                                                        .clip(Capsule())
-                                                        .clickable(
-                                                            interactionSource = remember { MutableInteractionSource() },
-                                                            indication = null,
-                                                            onClick = {
-                                                                clearSearch()
-                                                                runCatching { focusRequester.requestFocus() }
-                                                                keyboardController?.show()
-                                                            }
-                                                        ),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Filled.Close,
-                                                        contentDescription = null,
-                                                        tint = c.textSecondary,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            if (!counter.isNullOrBlank()) {
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = counter,
-                                                    style = MiuixTheme.textStyles.footnote1,
-                                                    color = c.textSecondary
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            LiquidGlassIconButton(
-                                onClick = {
-                                    if (searchQuery.isBlank()) return@LiquidGlassIconButton
-                                    if (matches.isEmpty()) return@LiquidGlassIconButton
-                                    selectedMatchIndex = if (selectedMatchIndex - 1 < 0) matches.lastIndex else selectedMatchIndex - 1
-                                    jumpToMatch(selectedMatchIndex)
-                                },
-                                enabled = searchQuery.isNotBlank(),
-                                backdrop = liquidBackdrop,
-                                surfaceColor = tint
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.KeyboardArrowUp,
-                                    contentDescription = "Previous match",
-                                    tint = if (searchQuery.isNotBlank()) c.textPrimary else c.textSecondary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-
-                            LiquidGlassIconButton(
-                                onClick = {
-                                    if (searchQuery.isBlank()) return@LiquidGlassIconButton
-                                    if (matches.isEmpty()) return@LiquidGlassIconButton
-                                    selectedMatchIndex = (selectedMatchIndex + 1) % matches.size
-                                    jumpToMatch(selectedMatchIndex)
-                                },
-                                enabled = searchQuery.isNotBlank(),
-                                backdrop = liquidBackdrop,
-                                surfaceColor = tint
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.KeyboardArrowDown,
-                                    contentDescription = "Next match",
-                                    tint = if (searchQuery.isNotBlank()) c.textPrimary else c.textSecondary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+                if (loading) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            InfiniteProgressIndicator(modifier = Modifier.size(24.dp))
+                            Text("Loading file...", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceSecondary)
                         }
                     }
                 }
@@ -660,132 +449,155 @@ fun ConfigEditorScreen(
     }
 }
 
-@Composable
-private fun IconPillButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    enabled: Boolean,
-    selected: Boolean,
-    selectedTint: Color = Color.Unspecified,
-    onClick: () -> Unit
-) {
-    val c = appColors()
-    val interactionSource = remember { MutableInteractionSource() }
-    Box(
-        modifier = Modifier
-            .background(c.cardAlt, Capsule())
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                enabled = enabled,
-                onClick = onClick
-            )
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-    ) {
-        val tint = when {
-            !enabled -> c.textSecondary
-            selected && selectedTint != Color.Unspecified -> selectedTint
-            else -> c.textPrimary
-        }
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = tint,
-            modifier = Modifier.size(18.dp)
-        )
-    }
-}
+// ─── 溢出菜单 ────────────────────────────────────────────────────────────────
 
 @Composable
-private fun PillTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    cursorColor: Color,
-    trailingText: String?,
-    modifier: Modifier = Modifier
+private fun EditorOverflowPopup(
+    show: Boolean,
+    onDismissRequest: () -> Unit,
+    wordWrap: Boolean,
+    onToggleWordWrap: () -> Unit,
+    onSelectTheme: () -> Unit
 ) {
-    val c = appColors()
-    val selectionColors = remember(cursorColor) {
-        TextSelectionColors(
-            handleColor = cursorColor,
-            backgroundColor = cursorColor.copy(alpha = 0.28f)
-        )
-    }
-    Box(
-        modifier = modifier
-            .background(c.cardAlt, Capsule())
-            .padding(horizontal = 14.dp, vertical = 10.dp)
+    val wrapLabel = stringResource(R.string.config_editor_word_wrap) +
+        if (wordWrap) " ✓" else ""
+    val items = listOf(
+        wrapLabel to { onDismissRequest(); onToggleWordWrap() },
+        stringResource(R.string.config_editor_theme_select) to { onDismissRequest(); onSelectTheme() }
+    )
+    WindowListPopup(
+        show = show,
+        alignment = PopupPositionProvider.Align.TopEnd,
+        onDismissRequest = onDismissRequest
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.weight(1f)) {
-                if (value.isEmpty()) {
-                    Text(
-                        text = placeholder,
-                        color = c.textSecondary,
-                        style = MiuixTheme.textStyles.button
-                    )
-                }
-                CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
-                    BasicTextField(
-                        value = value,
-                        onValueChange = onValueChange,
-                        singleLine = true,
-                        cursorBrush = SolidColor(cursorColor),
-                        textStyle = TextStyle(
-                            color = c.textPrimary,
-                            fontSize = MiuixTheme.textStyles.button.fontSize
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
-            if (!trailingText.isNullOrBlank()) {
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = trailingText,
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = c.textSecondary
+        ListPopupColumn {
+            items.forEachIndexed { index, (label, action) ->
+                DropdownImpl(
+                    text = label,
+                    optionSize = items.size,
+                    isSelected = false,
+                    onSelectedIndexChange = { action() },
+                    index = index
                 )
             }
         }
     }
 }
 
+// ─── 主题选择对话框 ──────────────────────────────────────────────────────────
+
+@Composable
+private fun EditorThemePickerDialog(
+    isDark: Boolean,
+    currentTheme: String,
+    onSelectTheme: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val scheme = MiuixTheme.colorScheme
+    val downloadState by EditorThemeManager.downloadState.collectAsState()
+
+    val available = remember(downloadState) { EditorThemeManager.getAllAvailableThemes() }
+    val downloadable = remember(downloadState) { EditorThemeManager.getDownloadableThemes() }
+
+    HyperDialog(
+        show = true,
+        onDismissRequest = onDismiss,
+        title = stringResource(R.string.config_editor_theme_select),
+        confirmText = stringResource(R.string.action_cancel),
+        onConfirm = onDismiss
+    ) {
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // "自动" 选项
+            item {
+                BasicComponent(
+                    title = stringResource(R.string.config_editor_theme_auto),
+                    summary = if (isDark) "Darcula" else "Light",
+                    onClick = { onSelectTheme("auto") },
+                    titleColor = BasicComponentDefaults.titleColor(
+                        color = if (currentTheme == "auto") scheme.primary else scheme.onSurface
+                    )
+                )
+            }
+            // 已安装的主题
+            items(available) { def ->
+                BasicComponent(
+                    title = def.displayName,
+                    summary = if (def.isDark) "Dark" else "Light",
+                    onClick = { onSelectTheme(def.name) },
+                    titleColor = BasicComponentDefaults.titleColor(
+                        color = if (currentTheme == def.name) scheme.primary else scheme.onSurface
+                    )
+                )
+            }
+            // 可下载的主题
+            if (downloadable.isNotEmpty()) {
+                item {
+                    Text(
+                        text = stringResource(R.string.config_editor_theme_downloadable),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onSurfaceSecondary,
+                        modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp)
+                    )
+                }
+                items(downloadable) { def ->
+                    val isDownloading = downloadState is EditorThemeManager.DownloadState.Downloading &&
+                        (downloadState as EditorThemeManager.DownloadState.Downloading).themeName == def.name
+                    BasicComponent(
+                        title = def.displayName,
+                        summary = if (isDownloading) stringResource(R.string.config_editor_theme_downloading)
+                            else if (def.isDark) "Dark" else "Light",
+                        onClick = {
+                            if (!isDownloading) {
+                                scope.launch { EditorThemeManager.downloadTheme(context, def) }
+                            }
+                        },
+                        endActions = {
+                            if (isDownloading) {
+                                InfiniteProgressIndicator(modifier = Modifier.size(18.dp))
+                            } else {
+                                Icon(Icons.Filled.Download, null,
+                                    tint = scheme.onSurfaceSecondary, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ─── TextMate 语法高亮应用 ────────────────────────────────────────────────────
+
 private fun applyTextMate(
     editor: CodeEditor,
     filePath: String,
-    isDark: Boolean,
+    themeName: String,
     c: AppColors,
     primaryArgb: Int
 ) {
     val fileName = filePath.substringAfterLast('/')
     val ext = filePath.substringAfterLast('.', "").lowercase()
 
-    val languageSyntax = when {
-        ext == "sh" -> "shell.json"
-        fileName.startsWith("box.") -> "shell.json"
-        fileName.endsWith(".inotify") -> "shell.json"
-        fileName == "settings.ini" -> "shell.json"
-        fileName.startsWith("start.") -> "shell.json"
-        fileName.startsWith("ctr.") -> "shell.json"
-        fileName.startsWith("net.") -> "shell.json"
-        ext in listOf("ini", "cfg", "conf") -> "ini.json"
-        ext in listOf("yaml", "yml") -> "yaml.json"
-        ext == "json" -> "json.json"
+    val scopeName = when {
+        ext == "sh" -> "source.shell"
+        fileName.startsWith("box.") -> "source.shell"
+        fileName.endsWith(".inotify") -> "source.shell"
+        fileName == "settings.ini" -> "source.shell"
+        fileName.startsWith("start.") -> "source.shell"
+        fileName.startsWith("ctr.") -> "source.shell"
+        fileName.startsWith("net.") -> "source.shell"
+        ext in listOf("ini", "cfg", "conf") -> "source.ini"
+        ext in listOf("yaml", "yml") -> "source.yaml"
+        ext == "json" -> "source.json"
         else -> null
     }
 
-    val scopeName = when (languageSyntax) {
-        "yaml.json" -> "source.yaml"
-        "json.json" -> "source.json"
-        "ini.json" -> "source.ini"
-        "shell.json" -> "source.shell"
-        else -> null
-    }
-
-    ThemeRegistry.getInstance().setTheme(if (isDark) "darcula" else "light")
+    runCatching { ThemeRegistry.getInstance().setTheme(themeName) }
     editor.colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
     applyEditorChromeColors(editor, c, primaryArgb)
 
@@ -805,38 +617,11 @@ private fun applyEditorChromeColors(editor: CodeEditor, c: AppColors, primaryArg
     editor.colorScheme.setColor(EditorColorScheme.CURRENT_LINE, c.pageBg.copy(alpha = 0.35f).toArgb())
     editor.colorScheme.setColor(EditorColorScheme.SELECTION_INSERT, primaryArgb)
     editor.colorScheme.setColor(EditorColorScheme.SELECTION_HANDLE, primaryArgb)
-}
-
-@Composable
-private fun SolidPillButton(
-    text: String,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    leading: (@Composable () -> Unit)? = null
-) {
-    val c = appColors()
-    val interactionSource = remember { MutableInteractionSource() }
-    Box(
-        modifier = Modifier
-            .background(c.cardAlt, Capsule())
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                enabled = enabled,
-                onClick = onClick
-            )
-            .padding(horizontal = 14.dp, vertical = 10.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            leading?.invoke()
-            Text(
-                text = text,
-                color = if (enabled) c.textPrimary else c.textSecondary,
-                style = MiuixTheme.textStyles.button
-            )
-        }
-    }
+    // 搜索高亮背景
+    editor.colorScheme.setColor(EditorColorScheme.MATCHED_TEXT_BACKGROUND, (primaryArgb and 0x00FFFFFF) or 0x66000000)
+    // 缩进参考线
+    editor.colorScheme.setColor(EditorColorScheme.BLOCK_LINE, c.divider.toArgb())
+    editor.colorScheme.setColor(EditorColorScheme.BLOCK_LINE_CURRENT, primaryArgb)
+    // 选中文本背景
+    editor.colorScheme.setColor(EditorColorScheme.SELECTED_TEXT_BACKGROUND, (primaryArgb and 0x00FFFFFF) or 0x40000000)
 }

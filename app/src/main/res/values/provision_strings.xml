@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 通用导航 -->
+    <string name="provision_back_description">Back</string>
+    <string name="provision_start_content_description">Start</string>
+    <string name="provision_back">Back</string>
+    <string name="provision_next">Next</string>
+    <string name="provision_skip_underline">Skip</string>
+
+    <!-- 权限设置页 -->
+    <string name="provision_permission_settings_title">Permission settings</string>
+    <string name="provision_permission_internet">Network connection</string>
+    <string name="provision_permission_root">Root access</string>
+    <string name="provision_permission_notification">Notification permission</string>
+    <string name="provision_set_permission_later">Notification permission is optional and can be set later</string>
+
+    <!-- 免责声明页 -->
+    <string name="provision_disclaimer_title">Disclaimer</string>
+    <string name="provision_agree_and_next">Agree and continue</string>
+    <string name="provision_agree_terms">I understand and accept the above disclaimer</string>
+    <string name="provision_disclaimer_body"><![CDATA[
+        <p>Before using Box, please read the following carefully.</p>
+        <p><b>Purpose</b><br/>
+        Box is a network proxy management tool that requires Root access to modify device network routing. It is intended solely for lawful purposes such as network debugging, privacy protection, and security research.</p>
+        <p><b>Disclaimer</b><br/>
+        This application is provided "as is" without any warranties. The developer is not liable for any damages arising from its use, including:<br/>
+        \u0020\u0020• Network connectivity issues<br/>
+        \u0020\u0020• Data loss or corruption<br/>
+        \u0020\u0020• Device malfunction caused by improper use<br/>
+        \u0020\u0020• Any consequences of bypassing network restrictions</p>
+        <p><b>User Responsibility</b><br/>
+        You are solely responsible for ensuring your use complies with all applicable local laws and regulations. The developer assumes no responsibility for any illegal use.</p>
+        <p><b>Root Access</b><br/>
+        This application requires Root privileges to function. Improper use of Root may cause system instability or data loss. Please ensure you understand the risks involved.</p>
+        <p><b>Network Traffic</b><br/>
+        Box may modify your device\'s network routing and DNS resolution. All traffic management is performed locally on your device.</p>
+    ]]></string>
+
+    <!-- 基本设置页 -->
+    <string name="provision_basic_settings_title">Basic settings</string>
+    <string name="provision_basic_settings_category_appearance">Appearance</string>
+    <string name="provision_basic_settings_category_app">App</string>
+    <string name="provision_basic_settings_category_service">Service</string>
+    <string name="provision_basic_settings_language">Language</string>
+    <string name="provision_basic_settings_theme_mode">Theme mode</string>
+    <string name="provision_basic_settings_theme_follow_system">Follow system</string>
+    <string name="provision_basic_settings_theme_light">Light</string>
+    <string name="provision_basic_settings_theme_dark">Dark</string>
+    <string name="provision_basic_settings_notification">Service notification</string>
+    <string name="provision_basic_settings_notification_desc">Show persistent notification when service is running</string>
+    <string name="provision_basic_settings_auto_start">Auto start</string>
+    <string name="provision_basic_settings_auto_start_desc">Start proxy service automatically on boot</string>
+
+    <!-- 完成页 -->
+    <string name="provision_congratulation_title">Setup complete</string>
+    <string name="provision_congratulation_label">Welcome to Box</string>
+    <string name="provision_complete_text">Enter Box</string>
+    <string name="provision_system_preparing">Preparing…</string>
+    <string name="provision_system_complete">Setup complete</string>
+
+    <!-- 其他 -->
+    <string name="provision_get_md_failed">## Failed to get content.   \n - You can visit [here](%URL%) to view the origin content.   \n - Or try to [refresh](box://refresh) this page.</string>
+</resources>

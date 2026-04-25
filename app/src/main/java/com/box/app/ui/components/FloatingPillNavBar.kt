@@ -71,10 +71,10 @@ import kotlin.math.sign
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.All
+import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.icon.extended.Sidebar
 
 @Composable
 fun FloatingPillNavBar(
@@ -274,7 +274,7 @@ fun FloatingPillNavBar(
             TabItem(
                 index = 0,
                 selectedIndex = visualSelectedIndex,
-                icon = Icons.Filled.Home,
+                icon = MiuixIcons.Sidebar,
                 label = stringResource(MainTab.Home.labelResId),
                 selectedColor = accentColor,
                 enabled = isTabClickEnabled,
@@ -285,7 +285,7 @@ fun FloatingPillNavBar(
             TabItem(
                 index = 1,
                 selectedIndex = visualSelectedIndex,
-                icon = Icons.Filled.Build,
+                icon = MiuixIcons.All,
                 label = stringResource(MainTab.Tools.labelResId),
                 selectedColor = accentColor,
                 enabled = isTabClickEnabled,
@@ -296,7 +296,7 @@ fun FloatingPillNavBar(
             TabItem(
                 index = 2,
                 selectedIndex = visualSelectedIndex,
-                icon = Icons.Filled.Settings,
+                icon = MiuixIcons.Settings,
                 label = stringResource(MainTab.Settings.labelResId),
                 selectedColor = accentColor,
                 enabled = isTabClickEnabled,
@@ -363,7 +363,7 @@ fun FloatingPillNavBar(
                 TabItem(
                     index = 0,
                     selectedIndex = visualSelectedIndex,
-                    icon = Icons.Filled.Home,
+                    icon = MiuixIcons.Sidebar,
                     label = stringResource(MainTab.Home.labelResId),
                     selectedColor = accentColor,
                     enabled = isTabClickEnabled,
@@ -375,7 +375,7 @@ fun FloatingPillNavBar(
                 TabItem(
                     index = 1,
                     selectedIndex = visualSelectedIndex,
-                    icon = Icons.Filled.Build,
+                    icon = MiuixIcons.All,
                     label = stringResource(MainTab.Tools.labelResId),
                     selectedColor = accentColor,
                     enabled = isTabClickEnabled,
@@ -387,7 +387,7 @@ fun FloatingPillNavBar(
                 TabItem(
                     index = 2,
                     selectedIndex = visualSelectedIndex,
-                    icon = Icons.Filled.Settings,
+                    icon = MiuixIcons.Settings,
                     label = stringResource(MainTab.Settings.labelResId),
                     selectedColor = accentColor,
                     enabled = isTabClickEnabled,

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<View xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/content_mask"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/windowContentMask"
+    android:clickable="true"
+    android:importantForAccessibility="no"
+    android:visibility="gone" />

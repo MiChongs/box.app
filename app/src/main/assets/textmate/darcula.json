@@ -162,6 +162,76 @@
             "settings": {
                 "foreground": "#BBB529"
             }
+        },
+        {
+            "scope": ["punctuation.definition.dictionary.begin.json", "punctuation.definition.dictionary.end.json"],
+            "settings": {
+                "foreground": "#CC7832"
+            }
+        },
+        {
+            "scope": ["punctuation.definition.array.begin.json", "punctuation.definition.array.end.json"],
+            "settings": {
+                "foreground": "#CC7832"
+            }
+        },
+        {
+            "scope": ["punctuation.separator.array.json", "punctuation.separator.dictionary.pair.json"],
+            "settings": {
+                "foreground": "#CC7832"
+            }
+        },
+        {
+            "scope": "entity.name.tag.yaml",
+            "settings": {
+                "foreground": "#CC7832",
+                "fontStyle": "bold"
+            }
+        },
+        {
+            "scope": ["keyword.control.flow.block-scalar.literal.yaml", "keyword.control.flow.block-scalar.folded.yaml"],
+            "settings": {
+                "foreground": "#CC7832",
+                "fontStyle": "bold"
+            }
+        },
+        {
+            "scope": "keyword.control.flow.alias.yaml",
+            "settings": {
+                "foreground": "#FD971F"
+            }
+        },
+        {
+            "scope": "keyword.control.property.anchor.yaml",
+            "settings": {
+                "foreground": "#FD971F"
+            }
+        },
+        {
+            "scope": "entity.name.type.anchor.yaml",
+            "settings": {
+                "foreground": "#FD971F",
+                "fontStyle": "bold"
+            }
+        },
+        {
+            "scope": "punctuation.definition.block.sequence.item.yaml",
+            "settings": {
+                "foreground": "#CC7832"
+            }
+        },
+        {
+            "scope": ["entity.other.document.begin.yaml", "entity.other.document.end.yaml"],
+            "settings": {
+                "foreground": "#808080",
+                "fontStyle": "bold"
+            }
+        },
+        {
+            "scope": "storage.type.tag-handle.yaml",
+            "settings": {
+                "foreground": "#E0C46C"
+            }
         }
     ]
 }

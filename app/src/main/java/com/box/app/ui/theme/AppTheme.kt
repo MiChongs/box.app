@@ -28,7 +28,9 @@ import com.box.app.utils.ThemeManager
 import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.ThemeColorSpec
 import top.yukonga.miuix.kmp.theme.ThemeController
+import top.yukonga.miuix.kmp.theme.ThemePaletteStyle
 import top.yukonga.miuix.kmp.theme.darkColorScheme as miuixDarkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme as miuixLightColorScheme
 
@@ -63,9 +65,32 @@ fun AppTheme(
     val systemBarSettings by ThemeManager.systemBarSettings.collectAsState()
 
     val trueBlack by ThemeManager.trueBlack.collectAsState()
+    val monetEnabled by ThemeManager.monetEnabled.collectAsState()
+    val keyColor by ThemeManager.keyColor.collectAsState()
+    val paletteStyleName by ThemeManager.paletteStyle.collectAsState()
+    val colorSpecName by ThemeManager.colorSpec.collectAsState()
+
+    val miuixPaletteStyle = remember(paletteStyleName) {
+        try { ThemePaletteStyle.valueOf(paletteStyleName) } catch (_: Exception) { ThemePaletteStyle.TonalSpot }
+    }
+    val miuixColorSpec = remember(colorSpecName) {
+        if (colorSpecName == "SPEC_2025") ThemeColorSpec.Spec2025 else ThemeColorSpec.Spec2021
+    }
+
+    val colorSchemeMode = when {
+        monetEnabled -> when (themeMode) {
+            com.box.app.utils.ThemeMode.SYSTEM -> ColorSchemeMode.MonetSystem
+            com.box.app.utils.ThemeMode.LIGHT -> ColorSchemeMode.MonetLight
+            com.box.app.utils.ThemeMode.DARK -> ColorSchemeMode.MonetDark
+        }
+        else -> when (themeMode) {
+            com.box.app.utils.ThemeMode.LIGHT -> ColorSchemeMode.Light
+            com.box.app.utils.ThemeMode.DARK -> ColorSchemeMode.Dark
+            com.box.app.utils.ThemeMode.SYSTEM -> ColorSchemeMode.System
+        }
+    }
 
     val lightColors = remember { miuixLightColorScheme() }
-
     val darkColors = remember(trueBlack) {
         if (trueBlack) {
             miuixDarkColorScheme().copy(
@@ -77,17 +102,26 @@ fun AppTheme(
         }
     }
 
-    val controller = remember(themeMode, isDark, lightColors, darkColors, trueBlack) {
-        ThemeController(
-            colorSchemeMode = when (themeMode) {
-                com.box.app.utils.ThemeMode.LIGHT -> ColorSchemeMode.Light
-                com.box.app.utils.ThemeMode.DARK -> ColorSchemeMode.Dark
-                com.box.app.utils.ThemeMode.SYSTEM -> ColorSchemeMode.System
-            },
-            lightColors = lightColors,
-            darkColors = darkColors,
-            isDark = isDark
-        )
+    val controller = remember(
+        colorSchemeMode, isDark, lightColors, darkColors, trueBlack,
+        monetEnabled, keyColor, miuixPaletteStyle, miuixColorSpec
+    ) {
+        if (monetEnabled) {
+            ThemeController(
+                colorSchemeMode = colorSchemeMode,
+                keyColor = if (keyColor == 0) null else Color(keyColor),
+                isDark = isDark,
+                paletteStyle = miuixPaletteStyle,
+                colorSpec = miuixColorSpec
+            )
+        } else {
+            ThemeController(
+                colorSchemeMode = colorSchemeMode,
+                lightColors = lightColors,
+                darkColors = darkColors,
+                isDark = isDark
+            )
+        }
     }
 
     top.yukonga.miuix.kmp.theme.MiuixTheme(controller = controller) {

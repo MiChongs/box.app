@@ -58,8 +58,9 @@ import java.net.URL
  * 使用时 take() 取出已初始化的 WebView，new WebView() 耗时从 ~500ms 降至 ~0ms。
  */
 object WebViewPreloader {
+    // 使用 WeakReference 避免静态持有 WebView 导致内存泄漏
     @Volatile
-    private var prewarmedView: WebView? = null
+    private var prewarmedRef: java.lang.ref.WeakReference<WebView>? = null
     @Volatile
     private var providerLoaded = false
 
@@ -78,15 +79,14 @@ object WebViewPreloader {
             }
             // 阶段 2：provider 加载完成后，在主线程空闲时创建 WebView
             Handler(Looper.getMainLooper()).post {
-                // 利用 MessageQueue.IdleHandler 在主线程完全空闲时执行
                 Looper.myQueue().addIdleHandler {
-                    if (prewarmedView == null) {
+                    if (prewarmedRef?.get() == null) {
                         runCatching {
-                            prewarmedView = WebView(context.applicationContext).apply {
-                                // 预配置常用 settings，减少 take() 后的重配置开销
+                            val wv = WebView(context.applicationContext).apply {
                                 settings.apply {
                                     javaScriptEnabled = true
                                     domStorageEnabled = true
+                                    @Suppress("DEPRECATION")
                                     databaseEnabled = true
                                     cacheMode = WebSettings.LOAD_DEFAULT
                                     mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
@@ -94,25 +94,32 @@ object WebViewPreloader {
                                     loadWithOverviewMode = true
                                     textZoom = 100
                                 }
-                                setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
                                 // 不加载任何 URL → 零历史，零网络请求
                             }
+                            prewarmedRef = java.lang.ref.WeakReference(wv)
                         }
                     }
-                    false // 返回 false = 只执行一次
+                    false
                 }
             }
         }.start()
     }
 
     /**
-     * 取出预热的 WebView（一次性）。取出后需要重新配置 settings/client。
-     * 若预热未完成则返回 null，调用方 fallback 到 new WebView()。
+     * 取出预热的 WebView（一次性）。取出后清除引用。
+     * 若预热未完成或已被 GC 回收则返回 null，调用方 fallback 到 new WebView()。
      */
     fun take(): WebView? {
-        val wv = prewarmedView
-        prewarmedView = null
+        val wv = prewarmedRef?.get()
+        prewarmedRef = null
         return wv
+    }
+
+    /** 释放预热的 WebView（防止长期持有） */
+    fun release() {
+        val wv = prewarmedRef?.get()
+        prewarmedRef = null
+        wv?.destroy()
     }
 }
 
@@ -492,7 +499,9 @@ fun ThemedWebView(
         Box(modifier = modifier.fillMaxSize().background(surfaceColor)) {
             AndroidView(
                 factory = { ctx ->
-                    val themedCtx = ContextThemeWrapper(ctx, R.style.Theme_BoxReApp)
+                    // 根据 isDark 选择亮/暗主题，确保 WebView 的 uiMode 与 App 设置一致
+                    val themeRes = if (isDark) R.style.Theme_BoxReApp else R.style.Theme_BoxReApp_Light
+                    val themedCtx = ContextThemeWrapper(ctx, themeRes)
                     // 优先取预热实例（已完成 Chromium 初始化），fallback 到新建
                     (WebViewPreloader.take() ?: WebView(themedCtx)).apply {
                         layoutParams = ViewGroup.LayoutParams(
@@ -551,9 +560,6 @@ fun ThemedWebView(
                             }
                         }
 
-                        // 硬件加速渲染层
-                        setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
-
                         webViewClient = viewClient
                         webChromeClient = chromeClient
 
@@ -595,6 +601,26 @@ fun ThemedWebView(
                     }
                 },
                 update = { webView ->
+                    // ── 深色模式同步（每次 isDark 变化时重新应用） ──
+                    webView.settings.apply {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            if (isAlgorithmicDarkeningAllowed != isDark) {
+                                isAlgorithmicDarkeningAllowed = isDark
+                            }
+                        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            @Suppress("DEPRECATION")
+                            val target = if (isDark) WebSettings.FORCE_DARK_ON else WebSettings.FORCE_DARK_OFF
+                            @Suppress("DEPRECATION")
+                            if (forceDark != target) {
+                                forceDark = target
+                            }
+                        }
+                    }
+                    webView.setBackgroundColor(
+                        if (isDark) android.graphics.Color.BLACK
+                        else android.graphics.Color.WHITE
+                    )
+
                     if (hideUntilCommitVisible) {
                         webView.alpha = if (contentVisible) 1f else 0f
                         webView.visibility = if (contentVisible) WebView.VISIBLE else WebView.INVISIBLE

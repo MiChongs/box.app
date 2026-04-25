@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <FrameLayout
+        android:id="@+id/search_mode_stub"
+        style="@style/Widget.SearchActionMode"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/miuix_appcompat_search_view_default_height"
+        android:clickable="false">
+
+        <LinearLayout
+            android:id="@android:id/inputArea"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/miuix_appcompat_searchbar_bg_height"
+            android:background="?attr/searchModeEditTextBackground"
+            android:forceDarkAllowed="false">
+
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:paddingStart="@dimen/miuix_appcompat_edit_text_search_bg_icon_padding_start"
+                android:paddingEnd="@dimen/miuix_appcompat_edit_text_search_bg_icon_padding_end"
+                android:scaleType="centerInside"
+                android:src="?attr/searchModeEditTextIcon" />
+
+            <TextView
+                android:id="@android:id/input"
+                style="@style/Miuix.AppCompat.TextAppearance.Widget.EditText.Search"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:contentDescription="@string/miuix_appcompat_search_input_description"
+                android:gravity="center|start"
+                android:singleLine="true"
+                android:textDirection="locale" />
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

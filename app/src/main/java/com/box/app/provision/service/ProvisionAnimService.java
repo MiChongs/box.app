@@ -1,0 +1,102 @@
+/*
+ * This file is part of HyperCeiler.
+
+ * HyperCeiler is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+ * Copyright (C) 2023-2026 HyperCeiler Contributions
+ */
+package com.box.app.provision.service;
+
+import android.app.Service;
+import android.content.Intent;
+import android.os.IBinder;
+import android.os.RemoteCallbackList;
+import android.os.RemoteException;
+import android.util.Log;
+
+import androidx.annotation.Nullable;
+
+import com.box.app.provision.IAnimCallback;
+import com.box.app.provision.IProvisionAnim;
+
+import java.util.HashMap;
+
+public class ProvisionAnimService extends Service {
+
+    private static final String TAG = "ProvisionAnimService";
+    public static HashMap<String, Integer> FAST_ANIM_MAP = new HashMap<>();
+    IProvisionAnim.Stub mProvisionAnimStub = new IProvisionAnim.Stub() {
+
+        private final RemoteCallbackList<IAnimCallback> mListeners = new RemoteCallbackList<>();
+
+        private void dispatchVideoPlay(boolean isBackAnim) {
+            try {
+                int broadcast = mListeners.beginBroadcast();
+                for (int i = 0; i < broadcast; i++) {
+                    IAnimCallback callback = mListeners.getBroadcastItem(i);
+                    if (isBackAnim) {
+                        callback.onBackAnimStart();
+                    } else {
+                        callback.onNextAminStart();
+                    }
+                }
+                mListeners.finishBroadcast();
+            } catch (RemoteException e) {
+                Log.e(TAG, "Can not call IAnimCallback:", e);
+            }
+        }
+
+        @Override
+        public IBinder asBinder() {
+            Log.d(TAG, "stub asBinder no anim");
+            return super.asBinder();
+        }
+
+        @Override
+        public boolean isAnimEnd() throws RemoteException {
+            return true;
+        }
+
+        @Override
+        public void playBackAnim(int i) throws RemoteException {
+            dispatchVideoPlay(true);
+        }
+
+        @Override
+        public void playNextAnim(int i) throws RemoteException {
+            Log.i(TAG, " without aim playNextAnim");
+            dispatchVideoPlay(false);
+        }
+
+        @Override
+        public void registerRemoteCallback(IAnimCallback callback) throws RemoteException {
+            if (callback != null) {
+                mListeners.register(callback);
+            }
+        }
+
+        @Override
+        public void unregisterRemoteCallback(IAnimCallback callback) throws RemoteException {
+            if (callback != null) {
+                mListeners.unregister(callback);
+            }
+        }
+    };
+
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+        return mProvisionAnimStub.asBinder();
+    }
+}

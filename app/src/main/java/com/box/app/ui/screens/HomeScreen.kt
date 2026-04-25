@@ -10,6 +10,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -63,6 +64,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.shapes.Capsule
 import kotlinx.coroutines.Dispatchers
@@ -96,6 +98,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
@@ -125,8 +128,6 @@ fun HomeScreen(
     onOpenSmartDns: (() -> Unit)? = null,
     onOpenSubscriptionDetail: () -> Unit = {}
 ) {
-    val pagePadding = 16.dp
-
     val scrollBehavior = MiuixScrollBehavior()
 
     // SmartDNS 模块存在检测（仅在模块安装时显示快捷入口）
@@ -230,7 +231,7 @@ fun HomeScreen(
 
     // Bottom sheets
 
-    val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val navBarPadding = com.box.app.ui.components.systemNavBarBottomPadding()
 
     val blurEnabled = com.box.app.utils.ThemeManager.shouldUseBlurEffects()
     val sheetBg = MiuixTheme.colorScheme.surfaceContainer
@@ -482,122 +483,176 @@ fun HomeScreen(
         ipGeoLoading = false
     }
 
-    val statusBarInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    // 当状态栏为 OPAQUE 时 AppTheme 已全局添加 statusBars padding，此处不再重复
+    val systemBarSettings by com.box.app.utils.ThemeManager.systemBarSettings.collectAsState()
+    val statusBarInset = if (systemBarSettings.statusBar == com.box.app.utils.SystemBarMode.OPAQUE) {
+        0.dp
+    } else {
+        WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    }
 
     // 根据屏幕可用高度（减去状态栏）决定布局密度
     val screenHeightDp = LocalConfiguration.current.screenHeightDp.dp
     val isCompact = screenHeightDp < 780.dp
     val sectionGap = if (isCompact) 6.dp else 10.dp
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val isMediumWidth = maxWidth >= 700.dp
+        val isExpandedWidth = maxWidth >= 1000.dp
+        val contentMaxWidth = when {
+            isExpandedWidth -> 1180.dp
+            isMediumWidth -> 960.dp
+            else -> Dp.Unspecified
+        }
+        val pagePadding = when {
+            isExpandedWidth -> 24.dp
+            isMediumWidth -> 20.dp
+            else -> 16.dp
+        }
+        val metricColumns = when {
+            isExpandedWidth -> 4
+            isMediumWidth -> 3
+            else -> 2
+        }
+        val useCompactQuickActions = isCompact && !isMediumWidth
+
+        Box(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = contentPaddingWithNavBars(
-                start = pagePadding,
-                end = pagePadding,
-                top = statusBarInset + 4.dp,
-                extraBottom = 8.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(sectionGap)
+            contentAlignment = Alignment.TopCenter
         ) {
-            item(key = "home_header") {
-                HomeHeader(onEdit = { showHomeLayoutSheet = true })
-            }
-            sectionOrder.filter { it !in hiddenSections }.forEach { id ->
-                when (id) {
-                    "hero" -> item(key = "home_hero") {
-                        HomeHeroCard(
-                            serviceState = serviceState,
-                            onStart = { HomeRepository.startService() },
-                            onStop = { HomeRepository.stopService() },
-                            onReload = { HomeRepository.restartService() }
-                        )
-                    }
-                    "quick" -> item(key = "home_quick") {
-                        HomeQuickActions(
-                            showSubStore = showSubStoreEntry,
-                            onOpenPanel = onOpenPanel,
-                            onOpenSubStore = onOpenSubStore,
-                            onOpenLogs = onOpenLogs,
-                            onOpenSmartDns = if (smartDnsInstalled && onOpenSmartDns != null) onOpenSmartDns else null,
-                            compact = isCompact
-                        )
-                    }
-                    "latency" -> item(key = "home_latency") {
-                        HomeLatencyCard(
-                            label1 = latencyTargets.getOrNull(0)?.name ?: stringResource(R.string.home_latency_baidu),
-                            baidu = metricsState.latencyBaiduMs,
-                            label2 = latencyTargets.getOrNull(1)?.name ?: stringResource(R.string.home_latency_cloudflare),
-                            cloudflare = metricsState.latencyCloudflareMs,
-                            label3 = latencyTargets.getOrNull(2)?.name ?: stringResource(R.string.home_latency_google),
-                            google = metricsState.latencyGoogleMs,
-                            loading = metricsState.latencyLoading,
-                            onRefresh = { HomeRepository.refreshLatencyNow() },
-                            compact = isCompact
-                        )
-                    }
-                    "grid" -> item(key = "home_grid") {
-                        val metricModels = metricOrder
-                            .filter { it !in hiddenMetrics }
-                            .mapNotNull { mid ->
-                                when (mid) {
-                                    "ip" -> HomeCardModel(
-                                        title = stringResource(R.string.home_card_ip),
-                                        value = metricsState.ip,
-                                        subtitle = if (metricsState.ipMode == IpMode.LAN) {
-                                            stringResource(R.string.home_ip_subtitle_interface, metricsState.lanInterface.takeIf { it.isNotBlank() && it != "-" } ?: "-")
-                                        } else {
-                                            stringResource(R.string.home_ip_subtitle_region, metricsState.publicCountry.takeIf { it.isNotBlank() && it != "-" } ?: metricsState.publicCountryCode.takeIf { it.isNotBlank() } ?: "-")
-                                        },
-                                        kind = HomeMetricKind.Ip,
-                                        accent = MiuixTheme.colorScheme.primary,
-                                        badgeText = if (metricsState.ipMode.name == "LAN") {
-                                            stringResource(R.string.home_ip_badge_lan)
-                                        } else {
-                                            val cc = metricsState.publicCountryCode.trim()
-                                            val flag = countryCodeToFlagEmoji(cc)
-                                            if (flag.isBlank()) stringResource(R.string.home_ip_badge_pub) else stringResource(R.string.home_ip_badge_pub_with_flag, flag)
-                                        },
-                                        cornerActionIcon = if (metricsState.ipMode == IpMode.PUBLIC) Icons.AutoMirrored.Filled.KeyboardArrowRight else null,
-                                        onCornerAction = if (metricsState.ipMode == IpMode.PUBLIC) { { showIpGeoDialog = true } } else null,
-                                        onClick = { HomeRepository.toggleIpMode() }
-                                    )
-                                    "net_speed" -> HomeCardModel(
-                                        title = stringResource(R.string.home_card_net_speed),
-                                        value = metricsState.netDown,
-                                        subtitle = if (metricsState.netUp == "-") stringResource(R.string.home_net_up_unknown) else stringResource(R.string.home_net_up_value, metricsState.netUp),
-                                        kind = HomeMetricKind.Speed,
-                                        accent = MiuixTheme.colorScheme.primary,
-                                        sparkDown = metricsState.netDownHistory,
-                                        sparkUp = metricsState.netUpHistory,
-                                        onClick = onOpenNetSpeed
-                                    )
-                                    "subscription" -> HomeCardModel(
-                                        title = stringResource(R.string.home_card_subscription),
-                                        value = if (metricsState.subscriptionTotalBytes > 0L) HomeMetricsApi.formatBytes(metricsState.subscriptionUsedBytes) else "-",
-                                        subtitle = if (metricsState.subscriptionTotalBytes > 0L) HomeMetricsApi.formatBytes(metricsState.subscriptionTotalBytes) else "-",
-                                        kind = HomeMetricKind.Subscription,
-                                        accent = MiuixTheme.colorScheme.onTertiaryContainer,
-                                        progress = metricsState.subscriptionProgress,
-                                        onClick = {
-                                            if (isSubscriptionClashApiEnabled) HomeRepository.refreshSubscriptionNow()
-                                            else HomeRepository.refreshSubscriptionIfUrlsChanged()
-                                            onOpenSubscriptionDetail()
-                                        }
-                                    )
-                                    "system" -> HomeCardModel(
-                                        title = stringResource(R.string.home_card_system),
-                                        value = metricsState.cpu,
-                                        subtitle = metricsState.ram,
-                                        kind = HomeMetricKind.System,
-                                        accent = MiuixTheme.colorScheme.secondary,
-                                        isActive = isRunning,
-                                        onClick = { showSystemDialog = true }
-                                    )
-                                    else -> null
-                                }
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (contentMaxWidth != Dp.Unspecified) {
+                            Modifier.widthIn(max = contentMaxWidth)
+                        } else {
+                            Modifier
+                        }
+                    ),
+                contentPadding = contentPaddingWithNavBars(
+                    start = pagePadding,
+                    end = pagePadding,
+                    top = statusBarInset + 4.dp,
+                    extraBottom = 8.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(sectionGap)
+            ) {
+                item(key = "home_header") {
+                    HomeHeader(onEdit = { showHomeLayoutSheet = true })
+                }
+                sectionOrder.filter { it !in hiddenSections }.forEach { id ->
+                    when (id) {
+                        "hero" -> item(key = "home_hero") {
+                            HomeHeroCard(
+                                serviceState = serviceState,
+                                onStart = { HomeRepository.startService() },
+                                onStop = { HomeRepository.stopService() },
+                                onReload = { HomeRepository.restartService() }
+                            )
+                        }
+                        "quick" -> item(key = "home_quick") {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                SmallTitle(
+                                    text = stringResource(R.string.home_layout_section_quick),
+                                    insideMargin = PaddingValues(horizontal = 0.dp, vertical = 8.dp)
+                                )
+                                HomeQuickActions(
+                                    showSubStore = showSubStoreEntry,
+                                    onOpenPanel = onOpenPanel,
+                                    onOpenSubStore = onOpenSubStore,
+                                    onOpenLogs = onOpenLogs,
+                                    onOpenSmartDns = if (smartDnsInstalled && onOpenSmartDns != null) onOpenSmartDns else null,
+                                    compact = useCompactQuickActions
+                                )
                             }
-                        HomeTwoColumnGrid(models = metricModels)
+                        }
+                        "latency" -> item(key = "home_latency") {
+                            HomeLatencyCard(
+                                label1 = latencyTargets.getOrNull(0)?.name ?: stringResource(R.string.home_latency_baidu),
+                                baidu = metricsState.latencyBaiduMs,
+                                label2 = latencyTargets.getOrNull(1)?.name ?: stringResource(R.string.home_latency_cloudflare),
+                                cloudflare = metricsState.latencyCloudflareMs,
+                                label3 = latencyTargets.getOrNull(2)?.name ?: stringResource(R.string.home_latency_google),
+                                google = metricsState.latencyGoogleMs,
+                                loading = metricsState.latencyLoading,
+                                onRefresh = { HomeRepository.refreshLatencyNow() },
+                                compact = isCompact && !isMediumWidth
+                            )
+                        }
+                        "grid" -> item(key = "home_grid") {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                SmallTitle(
+                                    text = stringResource(R.string.home_layout_section_grid),
+                                    insideMargin = PaddingValues(horizontal = 0.dp, vertical = 8.dp)
+                                )
+                                val metricModels = metricOrder
+                                .filter { it !in hiddenMetrics }
+                                .mapNotNull { mid ->
+                                    when (mid) {
+                                        "ip" -> HomeCardModel(
+                                            title = stringResource(R.string.home_card_ip),
+                                            value = metricsState.ip,
+                                            subtitle = if (metricsState.ipMode == IpMode.LAN) {
+                                                stringResource(R.string.home_ip_subtitle_interface, metricsState.lanInterface.takeIf { it.isNotBlank() && it != "-" } ?: "-")
+                                            } else {
+                                                stringResource(R.string.home_ip_subtitle_region, metricsState.publicCountry.takeIf { it.isNotBlank() && it != "-" } ?: metricsState.publicCountryCode.takeIf { it.isNotBlank() } ?: "-")
+                                            },
+                                            kind = HomeMetricKind.Ip,
+                                            accent = MiuixTheme.colorScheme.primary,
+                                            badgeText = if (metricsState.ipMode.name == "LAN") {
+                                                stringResource(R.string.home_ip_badge_lan)
+                                            } else {
+                                                val cc = metricsState.publicCountryCode.trim()
+                                                val flag = countryCodeToFlagEmoji(cc)
+                                                if (flag.isBlank()) stringResource(R.string.home_ip_badge_pub) else stringResource(R.string.home_ip_badge_pub_with_flag, flag)
+                                            },
+                                            cornerActionIcon = if (metricsState.ipMode == IpMode.PUBLIC) Icons.AutoMirrored.Filled.KeyboardArrowRight else null,
+                                            onCornerAction = if (metricsState.ipMode == IpMode.PUBLIC) { { showIpGeoDialog = true } } else null,
+                                            onClick = { HomeRepository.toggleIpMode() }
+                                        )
+                                        "net_speed" -> HomeCardModel(
+                                            title = stringResource(R.string.home_card_net_speed),
+                                            value = metricsState.netDown,
+                                            subtitle = if (metricsState.netUp == "-") stringResource(R.string.home_net_up_unknown) else stringResource(R.string.home_net_up_value, metricsState.netUp),
+                                            kind = HomeMetricKind.Speed,
+                                            accent = MiuixTheme.colorScheme.primary,
+                                            sparkDown = metricsState.netDownHistory,
+                                            sparkUp = metricsState.netUpHistory,
+                                            onClick = onOpenNetSpeed
+                                        )
+                                        "subscription" -> HomeCardModel(
+                                            title = stringResource(R.string.home_card_subscription),
+                                            value = if (metricsState.subscriptionTotalBytes > java.math.BigInteger.ZERO) HomeMetricsApi.formatBytes(metricsState.subscriptionUsedBytes) else "-",
+                                            subtitle = if (metricsState.subscriptionTotalBytes > java.math.BigInteger.ZERO) HomeMetricsApi.formatBytes(metricsState.subscriptionTotalBytes) else "-",
+                                            kind = HomeMetricKind.Subscription,
+                                            accent = MiuixTheme.colorScheme.onTertiaryContainer,
+                                            progress = metricsState.subscriptionProgress,
+                                            badgeText = metricsState.subscriptionProgress?.let {
+                                                val remainPct = ((1f - it.coerceIn(0f, 1f)) * 100f).toInt().coerceIn(0, 100)
+                                                stringResource(R.string.home_subscription_remain_badge, remainPct)
+                                            },
+                                            onClick = {
+                                                if (isSubscriptionClashApiEnabled) HomeRepository.refreshSubscriptionNow()
+                                                else HomeRepository.refreshSubscriptionIfUrlsChanged()
+                                                onOpenSubscriptionDetail()
+                                            }
+                                        )
+                                        "system" -> HomeCardModel(
+                                            title = stringResource(R.string.home_card_system),
+                                            value = metricsState.cpu,
+                                            subtitle = metricsState.ram,
+                                            kind = HomeMetricKind.System,
+                                            accent = MiuixTheme.colorScheme.secondary,
+                                            isActive = isRunning,
+                                            onClick = { showSystemDialog = true }
+                                        )
+                                        else -> null
+                                    }
+                                }
+                                HomeTwoColumnGrid(models = metricModels, columns = metricColumns)
+                            }
+                        }
                     }
                 }
             }
@@ -749,7 +804,7 @@ private fun HomeLayoutSheetContent(
 
             Spacer(
                 modifier = Modifier.height(
-                    WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding().coerceAtMost(12.dp)
+                    com.box.app.ui.components.systemNavBarBottomPadding().coerceAtMost(12.dp)
                 )
             )
         }

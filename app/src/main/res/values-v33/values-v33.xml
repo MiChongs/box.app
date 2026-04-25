@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Miuix.AppCompat.TextAppearance.WindowTitle">
+        <item name="android:textSize">@dimen/miuix_appcompat_title_text_size</item>
+        <item name="android:textColor">?attr/actionBarTitleColor</item>
+        <item name="android:fontFamily">@string/miuix_font_style_misans_medium_font_family</item>
+        <item name="android:fallbackLineSpacing">true</item>
+    </style>
+</resources>

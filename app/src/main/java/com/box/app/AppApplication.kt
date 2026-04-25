@@ -2,6 +2,7 @@ package com.box.app
 
 import android.app.Application
 import android.content.res.Configuration
+import com.box.app.utils.EditorThemeManager
 import com.box.app.utils.ThemeManager
 import com.box.app.utils.LanguageManager
 import com.box.app.utils.LatencyTargetsManager
@@ -36,6 +37,7 @@ class AppApplication : Application(), SingletonImageLoader.Factory {
         UiScaleManager.init(this)
         UpdateCheckManager.start(this)
         WebViewPreloader.preload(this)
+        EditorThemeManager.init(this)
         initTextMate()
     }
 
@@ -64,6 +66,13 @@ class AppApplication : Application(), SingletonImageLoader.Factory {
         }
         loadTheme("darcula", true)
         loadTheme("light", false)
+        loadTheme("monokai", true)
+        loadTheme("github-dark", true)
+        loadTheme("one-dark", true)
+        loadTheme("solarized-light", false)
+
+        // 注册已下载的外部主题
+        EditorThemeManager.registerDownloadedThemes(this)
 
         val isNightMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         themeRegistry.setTheme(if (isNightMode) "darcula" else "light")

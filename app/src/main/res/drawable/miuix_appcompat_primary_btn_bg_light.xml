@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android"
+    android:paddingLeft="@dimen/miuix_appcompat_button_content_safe_padding"
+    android:paddingRight="@dimen/miuix_appcompat_button_content_safe_padding">
+    <item android:drawable="@drawable/miuix_appcompat_primary_btn_bg_smooth_light" />
+    <item android:drawable="@drawable/miuix_appcompat_coloured_btn_fg_light" />
+</layer-list>

@@ -12,27 +12,43 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
-}
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
+        val jitpackToken = providers.gradleProperty("authToken").orNull?.takeIf { it.isNotBlank() }
+
         google()
         mavenCentral()
         maven("https://jitpack.io") {
-            credentials {
-                username = providers.gradleProperty("authToken").orNull
-                password = ""
+            if (jitpackToken != null) {
+                credentials {
+                    username = jitpackToken
+                    password = ""
+                }
             }
             content {
-                includeGroup("com.github.MiChongs")
+                includeGroup("com.github.topjohnwu.libsu")
+                includeGroup("com.github.getActivity")
             }
         }
         maven("https://maven.aliyun.com/repository/public")
+        maven("https://maven.pkg.github.com/ReChronoRain/HyperCeiler") {
+            val ghToken = providers.gradleProperty("hyperceilerToken").orNull?.takeIf { it.isNotBlank() }
+            if (ghToken != null) {
+                credentials {
+                    username = "MiChongs"
+                    password = ghToken
+                }
+            }
+            content {
+                includeGroup("fan.miuix")
+            }
+        }
     }
 }
 
 rootProject.name = "BoxReApp"
 include(":app")
+include(":libs:hyperx-compose")
+project(":libs:hyperx-compose").projectDir = file("libs/hyperx-compose")

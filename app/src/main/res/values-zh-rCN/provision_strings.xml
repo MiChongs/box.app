@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 通用导航 -->
+    <string name="provision_back_description">返回</string>
+    <string name="provision_start_content_description">开始</string>
+    <string name="provision_back">返回</string>
+    <string name="provision_next">下一步</string>
+    <string name="provision_skip_underline">跳过</string>
+
+    <!-- 权限设置页 -->
+    <string name="provision_permission_settings_title">权限设置</string>
+    <string name="provision_permission_internet">网络连接</string>
+    <string name="provision_permission_root">Root 权限</string>
+    <string name="provision_permission_notification">通知权限</string>
+    <string name="provision_set_permission_later">通知权限为可选项，可稍后在设置中开启</string>
+
+    <!-- 免责声明页 -->
+    <string name="provision_disclaimer_title">免责声明</string>
+    <string name="provision_agree_and_next">同意并继续</string>
+    <string name="provision_agree_terms">我已阅读并接受以上免责声明</string>
+    <string name="provision_disclaimer_body"><![CDATA[
+        <p>使用 Box 前，请仔细阅读以下内容。</p>
+        <p><b>用途说明</b><br/>
+        Box 是一款网络代理管理工具，需要 Root 权限修改设备的网络路由。本应用仅供网络调试、隐私保护、安全研究等合法用途使用。</p>
+        <p><b>免责条款</b><br/>
+        本应用按「现状」提供，不作任何明示或暗示的保证。开发者不对因使用本应用而产生的任何损失承担责任，包括：<br/>
+        \u0020\u0020• 网络连接异常<br/>
+        \u0020\u0020• 数据丢失或损坏<br/>
+        \u0020\u0020• 因不当使用导致的设备故障<br/>
+        \u0020\u0020• 绕过网络限制所产生的任何后果</p>
+        <p><b>用户责任</b><br/>
+        您应自行确保对本应用的使用符合所在地区的法律法规。开发者不对任何违法使用行为承担责任。</p>
+        <p><b>Root 权限</b><br/>
+        本应用需要 Root 权限才能运行。不当使用 Root 权限可能导致系统不稳定或数据丢失，请确保您了解相关风险。</p>
+        <p><b>网络流量</b><br/>
+        Box 可能会修改设备的网络路由和 DNS 解析。所有网络流量管理均在本地设备上执行。</p>
+    ]]></string>
+
+    <!-- 基本设置页 -->
+    <string name="provision_basic_settings_title">基本设置</string>
+    <string name="provision_basic_settings_category_appearance">外观</string>
+    <string name="provision_basic_settings_category_app">应用</string>
+    <string name="provision_basic_settings_category_service">服务</string>
+    <string name="provision_basic_settings_language">语言</string>
+    <string name="provision_basic_settings_theme_mode">主题模式</string>
+    <string name="provision_basic_settings_theme_follow_system">跟随系统</string>
+    <string name="provision_basic_settings_theme_light">浅色</string>
+    <string name="provision_basic_settings_theme_dark">深色</string>
+    <string name="provision_basic_settings_notification">服务通知</string>
+    <string name="provision_basic_settings_notification_desc">服务运行时显示常驻通知</string>
+    <string name="provision_basic_settings_auto_start">开机自启</string>
+    <string name="provision_basic_settings_auto_start_desc">开机后自动启动代理服务</string>
+
+    <!-- 完成页 -->
+    <string name="provision_congratulation_title">设置完成</string>
+    <string name="provision_congratulation_label">欢迎使用 Box</string>
+    <string name="provision_complete_text">进入 Box</string>
+    <string name="provision_system_preparing">正在准备…</string>
+    <string name="provision_system_complete">设置完成</string>
+
+    <!-- 其他 -->
+    <string name="provision_get_md_failed">## 获取内容失败   \n - 您可以访问 [此处](%URL%) 查看原始内容。   \n - 或尝试 [刷新](box://refresh) 此页面。</string>
+</resources>

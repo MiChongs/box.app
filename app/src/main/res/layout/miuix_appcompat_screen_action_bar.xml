@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<fan.appcompat.internal.app.widget.ActionBarOverlayLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/action_bar_overlay_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <FrameLayout
+        android:id="@android:id/content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:foreground="?android:attr/windowContentOverlay"
+        android:foregroundGravity="center|fill_horizontal|top" />
+
+    <fan.appcompat.internal.app.widget.ActionBarContainer
+        android:id="@+id/action_bar_container"
+        style="?android:attr/actionBarStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:clickable="true"
+        android:focusable="true">
+
+        <fan.appcompat.internal.app.widget.ActionBarView
+            android:id="@+id/action_bar"
+            style="?android:attr/actionBarStyle"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <ViewStub
+            android:id="@+id/action_context_bar_vs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout="@layout/miuix_appcompat_screen_action_bar_context_layout" />
+    </fan.appcompat.internal.app.widget.ActionBarContainer>
+
+    <ViewStub
+        android:id="@+id/extra_custom_layout_vs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:layout="@layout/miuix_appcompat_screen_action_bar_extra_custom_layout" />
+
+    <ViewStub
+        android:id="@+id/split_action_bar_vs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout="@layout/miuix_appcompat_screen_action_bar_split_layout" />
+
+    <ViewStub
+        android:id="@+id/search_mask_vs"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout="@layout/miuix_appcompat_screen_action_bar_searchmask_layout" />
+
+    <ViewStub
+        android:id="@+id/content_mask_vs"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout="@layout/miuix_appcompat_screen_action_bar_contentmask_layout" />
+
+    <ViewStub
+        android:id="@+id/split_anim_content_mask"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout="@layout/miuix_appcompat_screen_action_bar_splitanim_contentmask_layout" />
+</fan.appcompat.internal.app.widget.ActionBarOverlayLayout>

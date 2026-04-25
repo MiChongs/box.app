@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:clipToPadding="false"
+        android:clipChildren="false"
+        android:overScrollMode="never"
+        android:paddingStart="?attr/preferenceItemPaddingStart"
+        android:paddingEnd="?attr/preferenceItemPaddingEnd"
+        android:paddingBottom="24dp">
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clipChildren="false"
+            android:clipToPadding="false">
+
+            <TextView
+                android:id="@+id/privacy"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="20dp"
+                android:textColor="@color/provision_list_description_color"
+                android:textSize="14sp"
+                android:lineSpacingMultiplier="1.35"
+                android:breakStrategy="high_quality"
+                android:hyphenationFrequency="full"
+                android:background="@drawable/provision_list_item_background" />
+
+            <CheckBox
+                android:id="@+id/checkbox_agree"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:textColor="@color/provision_list_description_color"
+                android:textSize="14sp"
+                android:visibility="gone"
+                android:paddingStart="8dp"
+                android:minHeight="48dp" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+</FrameLayout>

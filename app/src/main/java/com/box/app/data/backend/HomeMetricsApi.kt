@@ -21,9 +21,24 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 internal object HomeMetricsApi {
 
+    private data class LanIpCandidate(
+        val iface: String,
+        val ip: String
+    )
+
     data class LanIpInfo(
         val ip: String,
         val iface: String
+    )
+
+    private val ignoredLanIfacePrefixes = listOf(
+        "lo", "tun", "tap", "wg", "utun", "tailscale", "docker", "veth",
+        "ifb", "dummy", "sit", "ip6tnl", "gre", "gretap", "erspan", "virbr", "zt"
+    )
+
+    private val preferredLanIfacePrefixes = listOf(
+        "wlan", "wifi", "wl", "eth", "en", "ap", "br", "bond", "usb",
+        "rndis", "rmnet", "ccmni", "v4-rmnet"
     )
 
     private val okHttpClient: OkHttpClient by lazy {
@@ -40,27 +55,141 @@ internal object HomeMetricsApi {
     }
 
     suspend fun getLanIpInfo(): LanIpInfo {
+        getLanIpInfoFromShell()?.let { return it }
+        return getLanIpInfoFromNetworkInterfaces()
+    }
+
+    private suspend fun getLanIpInfoFromShell(): LanIpInfo? {
+        return try {
+            val preferredIface = ShellExecutor.execute(
+                """
+                if command -v ip >/dev/null 2>&1; then
+                  (ip route get 1.1.1.1 2>/dev/null || ip -4 route show default 2>/dev/null) \
+                    | awk '{for (i = 1; i <= NF; i++) if (${ '$' }i == "dev") { print ${ '$' }(i+1); exit }}'
+                fi
+                """.trimIndent()
+            ).stdout.trim()
+
+            val candidatesRes = ShellExecutor.execute(
+                """
+                if command -v ip >/dev/null 2>&1; then
+                  ip -4 -o addr show up 2>/dev/null \
+                    | awk '{split(${ '$' }4, a, "/"); if (a[1] != "" && a[1] != "127.0.0.1") print ${ '$' }2 "|" a[1]}'
+                elif command -v ifconfig >/dev/null 2>&1; then
+                  ifconfig 2>/dev/null \
+                    | awk '/^[^ \t]/{iface=${ '$' }1; sub(":", "", iface)} /inet /{for(i=1;i<=NF;i++) if(${ '$' }i=="inet"){ip=${ '$' }(i+1); if(ip != "127.0.0.1") print iface "|" ip; break}}'
+                fi
+                """.trimIndent()
+            )
+
+            val candidates = candidatesRes.stdout
+                .lineSequence()
+                .mapNotNull(::parseLanIpCandidate)
+                .toList()
+
+            val best = chooseBestLanCandidate(candidates, preferredIface)
+            best?.let { LanIpInfo(ip = it.ip, iface = it.iface) }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private suspend fun getLanIpInfoFromNetworkInterfaces(): LanIpInfo {
         return try {
             val ifaces = withContext(Dispatchers.IO) {
                 NetworkInterface.getNetworkInterfaces()
             } ?: return LanIpInfo(ip = "-", iface = "-")
-            for (iface in ifaces.toList()) {
-                if (!iface.isUp || iface.isLoopback) continue
-                val ip = iface.inetAddresses.toList()
-                    .asSequence()
-                    .filterIsInstance<Inet4Address>()
-                    .mapNotNull { it.hostAddress }
-                    .firstOrNull { it.isNotBlank() }
-                    .orEmpty()
-                if (ip.isNotBlank()) {
-                    val ifaceName = iface.name?.takeIf { it.isNotBlank() } ?: "-"
-                    return LanIpInfo(ip = ip, iface = ifaceName)
+
+            val candidates = buildList {
+                for (iface in ifaces.toList()) {
+                    if (!iface.isUp || iface.isLoopback) continue
+                    val ifaceName = normalizeLanIfaceName(iface.name)
+                    val ip = iface.inetAddresses.toList()
+                        .asSequence()
+                        .filterIsInstance<Inet4Address>()
+                        .mapNotNull { it.hostAddress?.trim() }
+                        .firstOrNull(::isUsableIpv4)
+                        .orEmpty()
+                    if (ifaceName.isNotBlank() && ip.isNotBlank()) {
+                        add(LanIpCandidate(iface = ifaceName, ip = ip))
+                    }
                 }
             }
-            LanIpInfo(ip = "-", iface = "-")
+
+            val best = chooseBestLanCandidate(candidates, preferredIface = null)
+            if (best != null) LanIpInfo(ip = best.ip, iface = best.iface) else LanIpInfo(ip = "-", iface = "-")
         } catch (_: Exception) {
             LanIpInfo(ip = "-", iface = "-")
         }
+    }
+
+    private fun parseLanIpCandidate(raw: String): LanIpCandidate? {
+        val parts = raw.trim().split('|', limit = 2)
+        if (parts.size != 2) return null
+        val iface = normalizeLanIfaceName(parts[0])
+        val ip = parts[1].trim()
+        if (iface.isBlank() || !isUsableIpv4(ip)) return null
+        return LanIpCandidate(iface = iface, ip = ip)
+    }
+
+    private fun chooseBestLanCandidate(
+        candidates: List<LanIpCandidate>,
+        preferredIface: String?
+    ): LanIpCandidate? {
+        val preferred = normalizeLanIfaceName(preferredIface)
+        return candidates
+            .distinctBy { normalizeLanIfaceName(it.iface) to it.ip }
+            .sortedWith(
+                compareBy<LanIpCandidate>(
+                    { if (isIgnoredLanIface(it.iface)) 1 else 0 },
+                    {
+                        if (preferred.isNotBlank() && normalizeLanIfaceName(it.iface) == preferred && !isIgnoredLanIface(it.iface)) {
+                            0
+                        } else {
+                            1
+                        }
+                    },
+                    { if (isLanLikeIpv4(it.ip)) 0 else 1 },
+                    { lanIfacePriority(it.iface) },
+                    { normalizeLanIfaceName(it.iface) }
+                )
+            )
+            .firstOrNull()
+    }
+
+    private fun normalizeLanIfaceName(name: String?): String {
+        return name.orEmpty().trim().substringBefore('@').trim().removeSuffix(":")
+    }
+
+    private fun isIgnoredLanIface(name: String): Boolean {
+        val normalized = normalizeLanIfaceName(name).lowercase(Locale.US)
+        if (normalized.isBlank()) return true
+        return ignoredLanIfacePrefixes.any { prefix ->
+            normalized == prefix || normalized.startsWith("$prefix-") || normalized.startsWith(prefix)
+        }
+    }
+
+    private fun lanIfacePriority(name: String): Int {
+        val normalized = normalizeLanIfaceName(name).lowercase(Locale.US)
+        val preferredIndex = preferredLanIfacePrefixes.indexOfFirst { prefix ->
+            normalized == prefix || normalized.startsWith(prefix)
+        }
+        return if (preferredIndex >= 0) preferredIndex else preferredLanIfacePrefixes.size + 1
+    }
+
+    private fun isUsableIpv4(ip: String): Boolean {
+        val value = ip.trim()
+        if (value.isBlank()) return false
+        if (!value.matches(Regex("""^(?:\d{1,3}\.){3}\d{1,3}$"""))) return false
+        return value != "0.0.0.0" && value != "127.0.0.1"
+    }
+
+    private fun isLanLikeIpv4(ip: String): Boolean {
+        val value = ip.trim()
+        return value.startsWith("10.") ||
+            value.startsWith("192.168.") ||
+            value.matches(Regex("""^172\.(1[6-9]|2\d|3[0-1])\..*""")) ||
+            value.matches(Regex("""^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\..*"""))
     }
 
     suspend fun getSubscriptionUrlsRaw(): ShellExecutor.Result {
@@ -69,14 +198,14 @@ internal object HomeMetricsApi {
     }
 
     data class SubscriptionFlowInfo(
-        val uploadBytes: Long,
-        val downloadBytes: Long,
-        val totalBytes: Long,
+        val uploadBytes: java.math.BigInteger,
+        val downloadBytes: java.math.BigInteger,
+        val totalBytes: java.math.BigInteger,
         val expireEpochSec: Long,
         val title: String? = null
     ) {
-        val usedBytes: Long get() = uploadBytes + downloadBytes
-        val remainBytes: Long get() = (totalBytes - usedBytes).coerceAtLeast(0L)
+        val usedBytes: java.math.BigInteger get() = uploadBytes + downloadBytes
+        val remainBytes: java.math.BigInteger get() = (totalBytes - usedBytes).max(java.math.BigInteger.ZERO)
     }
 
     suspend fun getSubscriptionFlowInfo(url: String): SubscriptionFlowInfo? {
@@ -185,42 +314,51 @@ internal object HomeMetricsApi {
     fun parseSubscriptionUserInfo(header: String): SubscriptionFlowInfo? {
         if (header.isBlank()) return null
         // upload=123; download=456; total=789; expire=1693728000
-        var upload = 0L
-        var download = 0L
-        var total = 0L
+        var upload = java.math.BigInteger.ZERO
+        var download = java.math.BigInteger.ZERO
+        var total = java.math.BigInteger.ZERO
         var expire = 0L
         header.split(";").map { it.trim() }.forEach { part ->
             val kv = part.split("=")
             if (kv.size != 2) return@forEach
             val k = kv[0].trim().lowercase(Locale.getDefault())
-            val v = kv[1].trim().toLongOrNull() ?: 0L
+            val v = kv[1].trim()
             when (k) {
-                "upload" -> upload = v
-                "download" -> download = v
-                "total" -> total = v
-                "expire" -> expire = v
+                "upload" -> upload = v.toBigIntegerOrNull() ?: java.math.BigInteger.ZERO
+                "download" -> download = v.toBigIntegerOrNull() ?: java.math.BigInteger.ZERO
+                "total" -> total = v.toBigIntegerOrNull() ?: java.math.BigInteger.ZERO
+                "expire" -> expire = v.toLongOrNull() ?: 0L
             }
         }
-        if (total <= 0L) return null
+        if (total <= java.math.BigInteger.ZERO) return null
         return SubscriptionFlowInfo(uploadBytes = upload, downloadBytes = download, totalBytes = total, expireEpochSec = expire, title = null)
     }
 
-    fun formatBytes(bytes: Long): String {
-        val b = bytes.coerceAtLeast(0L).toDouble()
-        val kb = b / 1024.0
-        val mb = kb / 1024.0
-        val gb = mb / 1024.0
-        val tb = gb / 1024.0
-        val pb = tb / 1024.0
-        return when {
-            pb >= 1.0 -> String.format("%.2f PB", pb)
-            tb >= 1.0 -> String.format("%.2f TB", tb)
-            gb >= 1.0 -> String.format("%.2f GB", gb)
-            mb >= 1.0 -> String.format("%.0f MB", mb)
-            kb >= 1.0 -> String.format("%.0f KB", kb)
-            else -> String.format("%d B", bytes.coerceAtLeast(0L))
+    private val BYTE_UNITS = arrayOf("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+    private val K = java.math.BigDecimal.valueOf(1024L)
+
+    /**
+     * 格式化字节数为人类可读字符串。
+     * 使用 BigInteger → BigDecimal 精确计算，地址空间无上限，最高支持 YB。
+     */
+    fun formatBytes(bytes: java.math.BigInteger): String {
+        if (bytes <= java.math.BigInteger.ZERO) return "0 B"
+        var value = java.math.BigDecimal(bytes)
+        var unitIndex = 0
+        while (value >= K && unitIndex < BYTE_UNITS.size - 1) {
+            value = value.divide(K, 10, java.math.RoundingMode.HALF_UP)
+            unitIndex++
         }
+        val formatted = when {
+            unitIndex <= 1 -> value.setScale(0, java.math.RoundingMode.HALF_UP).toPlainString()
+            value >= java.math.BigDecimal.TEN -> value.setScale(1, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
+            else -> value.setScale(2, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
+        }
+        return "$formatted ${BYTE_UNITS[unitIndex]}"
     }
+
+    /** Long 兼容重载 */
+    fun formatBytes(bytes: Long): String = formatBytes(java.math.BigInteger.valueOf(bytes))
 
     fun formatExpireDate(epochSec: Long): String {
         if (epochSec <= 0L) return "-"
@@ -368,8 +506,8 @@ internal object HomeMetricsApi {
         return out
     }
 
-    suspend fun measureLatency(url: String): LatencyResult {
-        return try {
+    suspend fun measureLatency(url: String): LatencyResult = withContext(Dispatchers.IO) {
+        try {
             val req = Request.Builder()
                 .url(url)
                 .get()
@@ -379,14 +517,28 @@ internal object HomeMetricsApi {
 
             val start = System.nanoTime()
             okHttpClient.newCall(req).execute().use { resp ->
+                val end = System.nanoTime()
+                val ms = (end - start) / 1_000_000
                 val code = resp.code
-                if (code > 0) {
-                    val end = System.nanoTime()
-                    LatencyResult.Success((end - start) / 1_000_000)
-                } else {
-                    LatencyResult.NotAvailable
+                when {
+                    code in 200..399 -> LatencyResult.Success(ms)
+                    code in 400..499 -> LatencyResult.HttpError(code)
+                    code >= 500 -> LatencyResult.HttpError(code)
+                    else -> LatencyResult.Success(ms) // 1xx/3xx 仍算可达
                 }
             }
+        } catch (_: java.net.SocketTimeoutException) {
+            LatencyResult.Timeout
+        } catch (_: java.net.UnknownHostException) {
+            LatencyResult.DnsError
+        } catch (_: java.net.ConnectException) {
+            LatencyResult.Unreachable
+        } catch (_: java.net.NoRouteToHostException) {
+            LatencyResult.Unreachable
+        } catch (_: javax.net.ssl.SSLException) {
+            LatencyResult.Unreachable
+        } catch (_: java.io.InterruptedIOException) {
+            LatencyResult.Timeout
         } catch (_: Exception) {
             LatencyResult.NotAvailable
         }

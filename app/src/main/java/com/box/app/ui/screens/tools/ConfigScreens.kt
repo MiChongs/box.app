@@ -1,6 +1,5 @@
 package com.box.app.ui.screens.tools
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -62,14 +61,14 @@ fun ToolsConfigScreen(
     onNavVisibilityChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     initialTab: ConfigHubTab,
-    onEditorModeChange: (Boolean) -> Unit = {},
+    onOpenEditor: (String) -> Unit = {},
     enableBackHandler: Boolean = true
 ) {
     ConfigHubScreen(
         onNavVisibilityChange = onNavVisibilityChange,
         onBack = onBack,
         initialTab = initialTab,
-        onEditorModeChange = onEditorModeChange,
+        onOpenEditor = onOpenEditor,
         enableBackHandler = enableBackHandler
     )
 }
@@ -79,12 +78,11 @@ private fun ConfigHubScreen(
     onNavVisibilityChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     initialTab: ConfigHubTab,
-    onEditorModeChange: (Boolean) -> Unit = {},
+    onOpenEditor: (String) -> Unit = {},
     enableBackHandler: Boolean = true
 ) {
     val stateHolder = rememberSaveableStateHolder()
     var tab by rememberSaveable { mutableStateOf(initialTab) }
-    var editorPath by rememberSaveable { mutableStateOf<String?>(null) }
 
     // Manage 模式状态
     var manageAction by rememberSaveable { mutableStateOf<ManageAction?>(null) }
@@ -100,21 +98,6 @@ private fun ConfigHubScreen(
     var selectSelectedFile by rememberSaveable { mutableStateOf<String?>(null) }
     var selectActivateRequest by rememberSaveable { mutableStateOf<String?>(null) }
     var selectOverflowExpanded by rememberSaveable { mutableStateOf(false) }
-
-    // 编辑器覆盖层 BackHandler
-    BackHandler(enabled = editorPath != null) {
-        editorPath = null
-    }
-
-    LaunchedEffect(editorPath) {
-        val isInEditor = editorPath != null
-        onEditorModeChange(isInEditor)
-        if (isInEditor) {
-            onNavVisibilityChange(false)
-        } else {
-            onNavVisibilityChange(true)
-        }
-    }
 
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     var swipeCloseSignal by rememberSaveable { mutableStateOf(0) }
@@ -139,8 +122,7 @@ private fun ConfigHubScreen(
     // 滚动隐藏导航栏 + 关闭滑动行
     LaunchedEffect(listState) {
         var last = listState.firstVisibleItemIndex * 10_000 + listState.firstVisibleItemScrollOffset
-        snapshotFlow { listState.firstVisibleItemIndex * 10_000 + listState.firstVisibleItemScrollOffset }
-            .distinctUntilChanged()
+        snapshotFlow { listState.firstVisibleItemIndex * 10_000 + listState.firstVisibleItemScrollOffset }.distinctUntilChanged()
             .collect { now ->
                 swipeCloseSignal += 1
                 if (now > last) {
@@ -161,8 +143,10 @@ private fun ConfigHubScreen(
                 stringResource(R.string.tools_config_files_folders_title)
             }
         }
+
         ConfigHubTab.Select -> {
-            stringResource(R.string.tools_config_configuration_files) + (selectCoreName?.let { " ($it)" } ?: "")
+            stringResource(R.string.tools_config_configuration_files) + (selectCoreName?.let { " ($it)" }
+                ?: "")
         }
     }
 
@@ -170,227 +154,219 @@ private fun ConfigHubScreen(
         ConfigHubTab.Manage -> {
             if (manageCurrentPath.isNotBlank()) "/data/adb/box/$manageCurrentPath" else "/data/adb/box"
         }
+
         ConfigHubTab.Select -> {
-            selectActive?.let { stringResource(R.string.tools_config_active_configuration) + ": $it" } ?: ""
+            selectActive?.let { stringResource(R.string.tools_config_active_configuration) + ": $it" }
+                ?: ""
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            topBar = {
-                SmallTopAppBar(
-                    title = title,
-                    subtitle = subtitle,
-                    scrollBehavior = scrollBehavior,
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onSurface
-                            )
-                        }
-                    },
-                    actions = {
-                        when (tab) {
-                            ConfigHubTab.Manage -> {
-                                // 搜索按钮
-                                IconButton(onClick = {
-                                    manageSearchVisible = !manageSearchVisible
-                                    if (!manageSearchVisible) {
-                                        manageQuery = ""
-                                    }
-                                }) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Search,
-                                        contentDescription = null,
-                                        tint = if (manageSearchVisible) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
-                                    )
+    Scaffold(
+        topBar = {
+            SmallTopAppBar(
+                title = title,
+                subtitle = subtitle,
+                scrollBehavior = scrollBehavior,
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.onSurface
+                        )
+                    }
+                },
+                actions = {
+                    when (tab) {
+                        ConfigHubTab.Manage -> {
+                            // 搜索按钮
+                            IconButton(onClick = {
+                                manageSearchVisible = !manageSearchVisible
+                                if (!manageSearchVisible) {
+                                    manageQuery = ""
                                 }
-                                // 刷新按钮
-                                IconButton(onClick = { manageAction = ManageAction.Refresh }) {
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Search,
+                                    contentDescription = null,
+                                    tint = if (manageSearchVisible) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
+                                )
+                            }
+                            // 刷新按钮
+                            IconButton(onClick = { manageAction = ManageAction.Refresh }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Refresh,
+                                    contentDescription = null,
+                                    tint = MiuixTheme.colorScheme.onSurface
+                                )
+                            }
+                            // 溢出菜单按钮 + Popup 锚定在同一 Box
+                            Box {
+                                IconButton(onClick = { manageOverflowExpanded = true }) {
                                     Icon(
-                                        imageVector = Icons.Filled.Refresh,
+                                        imageVector = Icons.Filled.MoreVert,
                                         contentDescription = null,
                                         tint = MiuixTheme.colorScheme.onSurface
                                     )
                                 }
-                                // 溢出菜单按钮 + Popup 锚定在同一 Box
-                                Box {
-                                    IconButton(onClick = { manageOverflowExpanded = true }) {
-                                        Icon(
-                                            imageVector = Icons.Filled.MoreVert,
-                                            contentDescription = null,
-                                            tint = MiuixTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                    ConfigManageOverflowPopup(
-                                        show = manageOverflowExpanded,
-                                        onDismissRequest = { manageOverflowExpanded = false },
-                                        onAction = { action ->
-                                            manageOverflowExpanded = false
-                                            manageAction = action
-                                        }
-                                    )
-                                }
+                                ConfigManageOverflowPopup(
+                                    show = manageOverflowExpanded,
+                                    onDismissRequest = { manageOverflowExpanded = false },
+                                    onAction = { action ->
+                                        manageOverflowExpanded = false
+                                        manageAction = action
+                                    })
                             }
-                            ConfigHubTab.Select -> {
-                                // 溢出菜单按钮 + Popup 锚定在同一 Box
-                                Box {
-                                    IconButton(onClick = { selectOverflowExpanded = true }) {
-                                        Icon(
-                                            imageVector = Icons.Filled.MoreVert,
-                                            contentDescription = null,
-                                            tint = MiuixTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                    ConfigSelectOverflowPopup(
-                                        show = selectOverflowExpanded,
-                                        onDismissRequest = { selectOverflowExpanded = false },
-                                        onAction = { action ->
-                                            selectOverflowExpanded = false
-                                            selectAction = action
-                                        }
+                        }
+
+                        ConfigHubTab.Select -> {
+                            // 溢出菜单按钮 + Popup 锚定在同一 Box
+                            Box {
+                                IconButton(onClick = { selectOverflowExpanded = true }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.MoreVert,
+                                        contentDescription = null,
+                                        tint = MiuixTheme.colorScheme.onSurface
                                     )
                                 }
+                                ConfigSelectOverflowPopup(
+                                    show = selectOverflowExpanded,
+                                    onDismissRequest = { selectOverflowExpanded = false },
+                                    onAction = { action ->
+                                        selectOverflowExpanded = false
+                                        selectAction = action
+                                    })
                             }
                         }
                     }
-                )
-            }
-        ) { innerPadding ->
-            Column(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                // Tab 切换栏
-                TabRowWithContour(
-                    tabs = listOf(
-                        stringResource(R.string.tools_config_tab_manage),
-                        stringResource(R.string.tools_config_tab_select)
-                    ),
-                    selectedTabIndex = if (tab == ConfigHubTab.Manage) 0 else 1,
-                    onTabSelected = { index ->
-                        tab = if (index == 0) ConfigHubTab.Manage else ConfigHubTab.Select
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            start = 12.dp,
-                            end = 12.dp,
-                            top = innerPadding.calculateTopPadding() + 6.dp,
-                            bottom = 6.dp
-                        )
-                )
-
-                // 搜索栏（仅 Manage 模式）
-                AnimatedVisibility(
-                    visible = manageSearchVisible && tab == ConfigHubTab.Manage,
-                    enter = fadeIn(animationSpec = tween(140)) + expandVertically(animationSpec = tween(180)),
-                    exit = fadeOut(animationSpec = tween(110)) + shrinkVertically(animationSpec = tween(160))
-                ) {
-                    HyperTextField(
-                        value = manageQuery,
-                        onValueChange = { manageQuery = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                            .focusRequester(focusRequester),
-                        label = stringResource(R.string.tools_config_search_hint),
-                        singleLine = true,
-                        trailingIcon = if (manageQuery.isNotBlank()) {
-                            {
-                                IconButton(onClick = {
-                                    manageQuery = ""
-                                    runCatching { focusRequester.requestFocus() }
-                                    keyboardController?.show()
-                                }) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Close,
-                                        contentDescription = null,
-                                        tint = MiuixTheme.colorScheme.onSurfaceSecondary
-                                    )
-                                }
-                            }
-                        } else null
-                    )
-                }
-
-                // 内容 LazyColumn
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .nestedScroll(scrollBehavior.nestedScrollConnection),
-                    contentPadding = contentPaddingWithNavBars(
+                })
+        }) { innerPadding ->
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Tab 切换栏
+            TabRowWithContour(
+                tabs = listOf(
+                    stringResource(R.string.tools_config_tab_manage),
+                    stringResource(R.string.tools_config_tab_select)
+                ),
+                selectedTabIndex = if (tab == ConfigHubTab.Manage) 0 else 1,
+                onTabSelected = { index ->
+                    tab = if (index == 0) ConfigHubTab.Manage else ConfigHubTab.Select
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
                         start = 12.dp,
                         end = 12.dp,
-                        extraBottom = 12.dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    item {
-                        if (tab == ConfigHubTab.Manage) {
-                            stateHolder.SaveableStateProvider("config_manage") {
-                                ConfigBrowserContent(
-                                    rootPath = "",
-                                    titlePath = "/data/adb/box",
-                                    onExit = onBack,
-                                    onOpenEditor = { editorPath = it },
-                                    action = manageAction,
-                                    onActionConsumed = { manageAction = null },
-                                    query = manageQuery,
-                                    onQueryChange = { manageQuery = it },
-                                    searchVisible = manageSearchVisible,
-                                    currentPath = manageCurrentPath,
-                                    onCurrentPathChange = { manageCurrentPath = it },
-                                    backEnabled = editorPath == null && enableBackHandler,
-                                    swipeCloseSignal = swipeCloseSignal
+                        top = innerPadding.calculateTopPadding() + 6.dp,
+                        bottom = 6.dp
+                    )
+            )
+
+            // 搜索栏（仅 Manage 模式）
+            AnimatedVisibility(
+                visible = manageSearchVisible && tab == ConfigHubTab.Manage,
+                enter = fadeIn(animationSpec = tween(140)) + expandVertically(
+                    animationSpec = tween(
+                        180
+                    )
+                ),
+                exit = fadeOut(animationSpec = tween(110)) + shrinkVertically(
+                    animationSpec = tween(
+                        160
+                    )
+                )
+            ) {
+                HyperTextField(
+                    value = manageQuery,
+                    onValueChange = { manageQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .focusRequester(focusRequester),
+                    label = stringResource(R.string.tools_config_search_hint),
+                    singleLine = true,
+                    trailingIcon = if (manageQuery.isNotBlank()) {
+                        {
+                            IconButton(onClick = {
+                                manageQuery = ""
+                                runCatching { focusRequester.requestFocus() }
+                                keyboardController?.show()
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = null,
+                                    tint = MiuixTheme.colorScheme.onSurfaceSecondary
                                 )
                             }
-                        } else {
-                            stateHolder.SaveableStateProvider("config_select") {
-                                ConfigSelectCoreFolderContent(
-                                    onExit = onBack,
-                                    onOpenEditor = { editorPath = it },
-                                    action = selectAction,
-                                    onActionConsumed = { selectAction = null },
-                                    onCoreInfo = { core, active ->
-                                        selectCoreName = core
-                                        selectActive = active
-                                        if (selectSelectedFile == null) {
-                                            selectSelectedFile = active
-                                        }
-                                    },
-                                    onSelectFile = { selectSelectedFile = it },
-                                    activateRequest = selectActivateRequest,
-                                    onActivateConsumed = { selectActivateRequest = null },
-                                    backEnabled = editorPath == null && enableBackHandler,
-                                    swipeCloseSignal = swipeCloseSignal
-                                )
-                            }
+                        }
+                    } else null)
+            }
+
+            // 内容 LazyColumn
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                contentPadding = contentPaddingWithNavBars(
+                    start = 12.dp, end = 12.dp, extraBottom = 12.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
+                    if (tab == ConfigHubTab.Manage) {
+                        stateHolder.SaveableStateProvider("config_manage") {
+                            ConfigBrowserContent(
+                                rootPath = "",
+                                titlePath = "/data/adb/box",
+                                onExit = onBack,
+                                onOpenEditor = onOpenEditor,
+                                action = manageAction,
+                                onActionConsumed = { manageAction = null },
+                                query = manageQuery,
+                                onQueryChange = { manageQuery = it },
+                                searchVisible = manageSearchVisible,
+                                currentPath = manageCurrentPath,
+                                onCurrentPathChange = { manageCurrentPath = it },
+                                backEnabled = enableBackHandler,
+                                swipeCloseSignal = swipeCloseSignal
+                            )
+                        }
+                    } else {
+                        stateHolder.SaveableStateProvider("config_select") {
+                            ConfigSelectCoreFolderContent(
+                                onExit = onBack,
+                                onOpenEditor = onOpenEditor,
+                                action = selectAction,
+                                onActionConsumed = { selectAction = null },
+                                onCoreInfo = { core, active ->
+                                    selectCoreName = core
+                                    selectActive = active
+                                    if (selectSelectedFile == null) {
+                                        selectSelectedFile = active
+                                    }
+                                },
+                                onSelectFile = { selectSelectedFile = it },
+                                activateRequest = selectActivateRequest,
+                                onActivateConsumed = { selectActivateRequest = null },
+                                backEnabled = enableBackHandler,
+                                swipeCloseSignal = swipeCloseSignal
+                            )
                         }
                     }
                 }
             }
-        }
-
-        // ─── 编辑器覆盖层 ───
-        if (editorPath != null) {
-            ConfigEditorScreen(
-                filePath = editorPath!!,
-                onBack = { editorPath = null }
-            )
         }
     }
 }
 
-// ─── 溢出菜单（WindowListPopup） ─────────────────────────────────────────────
+// ─── 溢出菜单（WindowListPopup） ────────────────────────────────────────────
 
 @Composable
 private fun ConfigManageOverflowPopup(
-    show: Boolean,
-    onDismissRequest: () -> Unit,
-    onAction: (ManageAction) -> Unit
+    show: Boolean, onDismissRequest: () -> Unit, onAction: (ManageAction) -> Unit
 ) {
     val actions = listOf(
         ManageAction.NewFile to stringResource(R.string.tools_config_menu_new_file),
@@ -421,9 +397,7 @@ private fun ConfigManageOverflowPopup(
 
 @Composable
 private fun ConfigSelectOverflowPopup(
-    show: Boolean,
-    onDismissRequest: () -> Unit,
-    onAction: (SelectAction) -> Unit
+    show: Boolean, onDismissRequest: () -> Unit, onAction: (SelectAction) -> Unit
 ) {
     val actions = listOf(
         SelectAction.Refresh to stringResource(R.string.tools_config_menu_refresh),
