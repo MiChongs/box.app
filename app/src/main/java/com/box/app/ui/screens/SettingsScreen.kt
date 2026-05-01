@@ -1,9 +1,7 @@
 package com.box.app.ui.screens
 
 import android.app.DownloadManager
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.IntentFilter
 import android.content.Intent
 import android.content.ContentValues
 import android.net.Uri
@@ -12,17 +10,9 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
 
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -37,41 +27,33 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
 import androidx.compose.material.icons.filled.Android
-import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.Autorenew
-import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Translate
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.outlined.Brush
+import androidx.compose.material.icons.outlined.CloudSync
+import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.NetworkCheck
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.PowerSettingsNew
+import androidx.compose.material.icons.outlined.SettingsBackupRestore
+import androidx.compose.material.icons.outlined.SpaceDashboard
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -82,7 +64,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -100,10 +81,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -113,7 +91,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -137,7 +114,6 @@ import kotlin.math.roundToInt
 import com.box.app.data.backend.BoxApi
 import com.box.app.data.backend.ShellExecutor
 import com.box.app.data.repo.HomeRepository
-import com.box.app.data.repo.ConfigRepository
 import com.box.app.ui.screens.Settings.AboutScreen
 import com.box.app.ui.components.bottomsheets.AppModalBottomSheet
 import com.box.app.ui.miuix.HyperBottomSheet
@@ -145,16 +121,13 @@ import com.box.app.ui.miuix.HyperFilterChip
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import com.box.app.ui.components.bottomsheets.UpdateSheetMode
 import com.box.app.ui.components.bottomsheets.UpdateBottomSheet
-import com.box.app.ui.components.contentPaddingWithNavBars
 import com.box.app.ui.components.LocalFloatingNavBarSpaceDp
 import com.box.app.ui.theme.appAccentColor
 import com.box.app.ui.theme.appColors
 import com.box.app.ui.screens.Settings.OpenSourceLicensesScreen
 import com.box.app.utils.AppLanguage
 import com.box.app.utils.LanguageManager
-import com.box.app.utils.LatencyTarget
 import com.box.app.utils.LatencyTargetsManager
-import com.box.app.utils.MapleFontManager
 import com.box.app.utils.ThemeManager
 import com.box.app.utils.ThemeMode
 import com.box.app.utils.UiScaleManager
@@ -168,14 +141,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import dev.lackluster.hyperx.ui.layout.HyperXPage
 
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowDropdownPreference
-import androidx.compose.foundation.shape.RoundedCornerShape
 import com.box.app.ui.effect.androidRenderBlur
 import com.box.app.ui.effect.navigationCancelSpec
 import com.box.app.ui.effect.navigationPredictiveBackProgress
@@ -278,7 +249,9 @@ fun SettingsScreen(
                 onOpenTheme = { subPage = "theme" },
                 onOpenLatencyTargets = { subPage = "latency" },
                 onOpenOpenSourceLicenses = { subPage = "licenses" },
-                onOpenAbout = { subPage = "about" }
+                onOpenAbout = { subPage = "about" },
+                onOpenBaseProxyConfig = { subPage = "base_proxy" },
+                onOpenOtherProxyConfig = { subPage = "other_proxy" }
             )
         }
 
@@ -316,6 +289,12 @@ fun SettingsScreen(
                         "theme" -> ThemeSettingsScreen(
                             onBack = { subPage = null }
                         )
+                        "base_proxy" -> BaseProxyConfigScreen(
+                            onBack = { subPage = null }
+                        )
+                        "other_proxy" -> OtherProxyConfigScreen(
+                            onBack = { subPage = null }
+                        )
                         "latency" -> LatencyTargetsScreen(
                             onBack = { subPage = null }
                         )
@@ -347,7 +326,9 @@ private fun SettingsMainContent(
     onOpenTheme: () -> Unit = {},
     onOpenLatencyTargets: () -> Unit = {},
     onOpenOpenSourceLicenses: () -> Unit,
-    onOpenAbout: () -> Unit = {}
+    onOpenAbout: () -> Unit = {},
+    onOpenBaseProxyConfig: () -> Unit = {},
+    onOpenOtherProxyConfig: () -> Unit = {}
 ) {
 
     LaunchedEffect(listState) {
@@ -424,14 +405,6 @@ private fun SettingsMainContent(
     var lastDownloadMime by remember { mutableStateOf<String?>(null) }
 
     // latencyName/Url 状态已移至 LatencyTargetsScreen
-
-    val appIconDrawable = remember {
-        runCatching { context.applicationInfo.loadIcon(context.packageManager) }.getOrNull()
-    }
-    val appIconPainter: Painter? = remember(appIconDrawable) {
-        val bmp = appIconDrawable?.toBitmap(width = 128, height = 128)
-        bmp?.asImageBitmap()?.let { BitmapPainter(it) }
-    }
 
     DisposableEffect(useClashApi) {
         subPrefs.edit().putBoolean("use_clash_api", useClashApi).apply()
@@ -984,92 +957,70 @@ private fun SettingsMainContent(
 
     // 延迟目标编辑已移至 LatencyTargetsScreen 二级页面
 
-    Scaffold(
-        topBar = {
-            SmallTopAppBar(
-                title = stringResource(R.string.settings_title),
-                subtitle = stringResource(R.string.settings_subtitle)
-            )
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                ,
-            contentPadding = contentPaddingWithNavBars(
-                top = innerPadding.calculateTopPadding()
-            ),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            item {
-                SettingsPreferenceSection(
-                    title = stringResource(R.string.settings_section_appearance)
-                ) {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_theme_appearance),
-                    summary = stringResource(R.string.settings_theme_appearance_subtitle),
-                    onClick = onOpenTheme
-                )
-                SettingsPreferenceDivider()
-                WindowDropdownPreference(
-                    items = languageEntries,
-                    selectedIndex = when (currentLanguage) {
-                        AppLanguage.SYSTEM -> 0
-                        AppLanguage.ENGLISH -> 1
-                        AppLanguage.CHINESE -> 2
-                    },
-                    title = stringResource(R.string.settings_language),
-
-                    onSelectedIndexChange = { index ->
-                        val language = when (index) {
-                            1 -> AppLanguage.ENGLISH
-                            2 -> AppLanguage.CHINESE
-                            else -> AppLanguage.SYSTEM
-                        }
-                        LanguageManager.setLanguage(context, language)
-                    }
-                )
-                SettingsPreferenceDivider()
-                WindowDropdownPreference(
-                    items = systemBarEntries,
-                    selectedIndex = if (systemBarSettings.statusBar == com.box.app.utils.SystemBarMode.TRANSPARENT) 0 else 1,
-                    title = stringResource(R.string.settings_system_bars_opaque_status_title),
-
-                    summary = stringResource(R.string.settings_system_bars_opaque_subtitle),
-                    onSelectedIndexChange = { index ->
-                        ThemeManager.setSystemBarSettings(
-                            context,
-                            systemBarSettings.copy(
-                                statusBar = if (index == 0) com.box.app.utils.SystemBarMode.TRANSPARENT else com.box.app.utils.SystemBarMode.OPAQUE
-                            )
-                        )
-                    }
-                )
-                SettingsPreferenceDivider()
-                WindowDropdownPreference(
-                    items = systemBarEntries,
-                    selectedIndex = if (systemBarSettings.navigationBar == com.box.app.utils.SystemBarMode.TRANSPARENT) 0 else 1,
-                    title = stringResource(R.string.settings_system_bars_opaque_navigation_title),
-
-                    summary = stringResource(R.string.settings_system_bars_opaque_subtitle),
-                    onSelectedIndexChange = { index ->
-                        ThemeManager.setSystemBarSettings(
-                            context,
-                            systemBarSettings.copy(
-                                navigationBar = if (index == 0) com.box.app.utils.SystemBarMode.TRANSPARENT else com.box.app.utils.SystemBarMode.OPAQUE
-                            )
-                        )
-                    }
-                )
+    // HyperXPage + HyperXLayoutConfig：模糊跟随全局磨砂设置项；
+    // HyperXPage 内部正确处理 topBar 透明度、backdrop 与 overlapped fraction，
+    // 修复直接调 HyperXScaffold 时因 TopAppBar 不透明导致的"模糊内容不正确"
+    // LocalHyperXLayoutConfig 已由根级 HyperXAppLayout 提供（跟随磨砂设置项）
+    HyperXPage(
+        title = stringResource(R.string.settings_title),
+        listState = listState,
+        navigationIcon = {} // Settings 是底部 tab 页面，不需要返回按钮
+    ) {
+            // ── 卡 1：代理配置 ─────────────────────────────────────────
+            item(key = "card_proxy") {
+                SettingsCard {
+                    ArrowPreference(
+                        title = stringResource(R.string.base_proxy_config_title),
+                        summary = stringResource(R.string.settings_base_proxy_subtitle),
+                        startAction = { SettingsRowIcon(Icons.Outlined.Tune) },
+                        onClick = onOpenBaseProxyConfig
+                    )
+                    SettingsPreferenceDivider()
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_other_proxy_title),
+                        summary = stringResource(R.string.settings_other_proxy_subtitle),
+                        startAction = { SettingsRowIcon(Icons.Outlined.Dns) },
+                        onClick = onOpenOtherProxyConfig
+                    )
                 }
             }
 
+            // ── 卡 2：外观（语言 + 主题） ────────────────────────────
+            item(key = "card_appearance") {
+                SettingsCard {
+                    WindowDropdownPreference(
+                        items = languageEntries,
+                        selectedIndex = when (currentLanguage) {
+                            AppLanguage.SYSTEM -> 0
+                            AppLanguage.ENGLISH -> 1
+                            AppLanguage.CHINESE -> 2
+                        },
+                        title = stringResource(R.string.settings_language),
+                        summary = stringResource(R.string.settings_language_subtitle),
+                        startAction = { SettingsRowIcon(Icons.Outlined.Language) },
+                        onSelectedIndexChange = { index ->
+                            val language = when (index) {
+                                1 -> AppLanguage.ENGLISH
+                                2 -> AppLanguage.CHINESE
+                                else -> AppLanguage.SYSTEM
+                            }
+                            LanguageManager.setLanguage(context, language)
+                        }
+                    )
+                    SettingsPreferenceDivider()
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_theme_appearance),
+                        summary = stringResource(R.string.settings_theme_section_subtitle),
+                        startAction = { SettingsRowIcon(Icons.Outlined.Brush) },
+                        onClick = onOpenTheme
+                    )
+                }
+            }
+
+            // ── 卡 3：服务（开机自启 + 加速下载，bfr 渠道无此组） ──
             if (BuildConfig.FLAVOR != "bfr") {
-                item {
-                    SettingsPreferenceSection(
-                        title = stringResource(R.string.settings_section_service)
-                    ) {
+                item(key = "card_service") {
+                    SettingsCard {
                         SwitchPreference(
                             checked = autoStart,
                             onCheckedChange = { enabled ->
@@ -1080,6 +1031,7 @@ private fun SettingsMainContent(
                             },
                             title = stringResource(R.string.settings_auto_start),
                             summary = stringResource(R.string.settings_auto_start_subtitle),
+                            startAction = { SettingsRowIcon(Icons.Outlined.PowerSettingsNew) }
                         )
                         SettingsPreferenceDivider()
                         SwitchPreference(
@@ -1092,122 +1044,115 @@ private fun SettingsMainContent(
                             },
                             title = stringResource(R.string.settings_accelerated_download),
                             summary = stringResource(R.string.settings_accelerated_download_subtitle),
+                            startAction = { SettingsRowIcon(Icons.Outlined.FileDownload) }
                         )
                     }
                 }
             }
 
-            item {
-                SettingsPreferenceSection(
-                    title = stringResource(R.string.settings_section_subscription)
-                ) {
-                SwitchPreference(
-                    checked = useClashApi,
-                    onCheckedChange = { useClashApi = it },
-                    title = stringResource(R.string.settings_use_clash_api),
-                    summary = if (useClashApi) stringResource(R.string.settings_providers_mode) else stringResource(R.string.settings_url_mode),
-                )
-                }
-            }
-
-            item {
-                SettingsPreferenceSection(
-                    title = stringResource(R.string.settings_section_net_speed)
-                ) {
-                SwitchPreference(
-                    checked = useClashApiForNetSpeed,
-                    onCheckedChange = { useClashApiForNetSpeed = it },
-                    title = stringResource(R.string.settings_use_clash_api),
-                    summary = if (useClashApiForNetSpeed) stringResource(R.string.settings_core_api_mode) else stringResource(R.string.settings_system_mode),
-                )
-
-                if (useClashApiForNetSpeed) {
+            // ── 卡 4：杂项（通知 + 启动时打开面板 + 备份恢复） ─────
+            item(key = "card_misc") {
+                SettingsCard {
+                    SwitchPreference(
+                        checked = enableNotifications,
+                        onCheckedChange = { enableNotifications = it },
+                        title = stringResource(R.string.settings_notifications),
+                        summary = stringResource(R.string.settings_notifications_subtitle),
+                        startAction = { SettingsRowIcon(Icons.Outlined.Notifications) }
+                    )
+                    SettingsPreferenceDivider()
+                    SwitchPreference(
+                        checked = openPanelOnLaunch,
+                        onCheckedChange = { openPanelOnLaunch = it },
+                        title = stringResource(R.string.settings_open_panel_on_launch),
+                        summary = stringResource(R.string.settings_open_panel_on_launch_subtitle),
+                        startAction = { SettingsRowIcon(Icons.Outlined.SpaceDashboard) }
+                    )
                     SettingsPreferenceDivider()
                     ArrowPreference(
-                        title = stringResource(R.string.settings_filter_chains),
-                        summary = proxyTrafficFilterText.ifBlank { defaultProxyTrafficFilter },
-                        onClick = { showProxyTrafficFilterSheet = true }
+                        title = stringResource(R.string.settings_backup_restore_title),
+                        summary = stringResource(R.string.settings_backup_restore_subtitle),
+                        startAction = { SettingsRowIcon(Icons.Outlined.SettingsBackupRestore) },
+                        onClick = { showBackupRestoreDialog = true }
                     )
                 }
-                }
             }
 
-            item {
-                SettingsPreferenceSection(
-                    title = stringResource(R.string.settings_latency_targets_title)
-                ) {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_latency_targets_title),
-                    summary = latencyPreview,
-                    onClick = onOpenLatencyTargets
-                )
-                }
-            }
-
-            item {
-                SettingsPreferenceSection(
-                    title = stringResource(R.string.settings_section_misc)
-                ) {
-                SwitchPreference(
-                    checked = openPanelOnLaunch,
-                    onCheckedChange = { openPanelOnLaunch = it },
-                    title = stringResource(R.string.settings_open_panel_on_launch),
-                    summary = stringResource(R.string.settings_open_panel_on_launch_subtitle),
-                )
-                SettingsPreferenceDivider()
-                SwitchPreference(
-                    checked = enableNotifications,
-                    onCheckedChange = { enableNotifications = it },
-                    title = stringResource(R.string.settings_notifications),
-                    summary = stringResource(R.string.settings_notifications_subtitle),
-                )
-                SettingsPreferenceDivider()
-                ArrowPreference(
-                    title = stringResource(R.string.settings_backup_restore_title),
-                    summary = stringResource(R.string.settings_backup_restore_subtitle),
-                    onClick = { showBackupRestoreDialog = true }
-                )
-                }
-            }
-
-            item {
-                SettingsPreferenceSection(
-                    title = stringResource(R.string.settings_section_about)
-                ) {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_version),
-                    summary = "v$appVersionText",
-                    endActions = {
-                        VersionUpdateBadge(
-                            isChecking = updateCheckStatus.isChecking,
-                            appHasUpdate = updateCheckStatus.appHasUpdate,
-                            moduleHasUpdate = updateCheckStatus.moduleHasUpdate,
-                            onAppClick = {
-                                scope.launch {
-                                    openUpdateSheetFor(UpdateTarget.APP)
-                                }
-                            },
-                            onModuleClick = {
-                                scope.launch {
-                                    openUpdateSheetFor(UpdateTarget.MODULE)
-                                }
-                            }
+            // ── 卡 5：订阅 / 测速 后端选择（保留旧逻辑，整合为单卡） ──
+            item(key = "card_advanced") {
+                SettingsCard {
+                    SwitchPreference(
+                        checked = useClashApi,
+                        onCheckedChange = { useClashApi = it },
+                        title = stringResource(R.string.settings_use_clash_api),
+                        summary = if (useClashApi) stringResource(R.string.settings_providers_mode) else stringResource(R.string.settings_url_mode),
+                        startAction = { SettingsRowIcon(Icons.Outlined.CloudSync) }
+                    )
+                    SettingsPreferenceDivider()
+                    SwitchPreference(
+                        checked = useClashApiForNetSpeed,
+                        onCheckedChange = { useClashApiForNetSpeed = it },
+                        title = stringResource(R.string.settings_section_net_speed),
+                        summary = if (useClashApiForNetSpeed) stringResource(R.string.settings_core_api_mode) else stringResource(R.string.settings_system_mode),
+                        startAction = { SettingsRowIcon(Icons.Outlined.NetworkCheck) }
+                    )
+                    if (useClashApiForNetSpeed) {
+                        SettingsPreferenceDivider()
+                        ArrowPreference(
+                            title = stringResource(R.string.settings_filter_chains),
+                            summary = proxyTrafficFilterText.ifBlank { defaultProxyTrafficFilter },
+                            startAction = { SettingsRowIcon(Icons.Outlined.FilterList) },
+                            onClick = { showProxyTrafficFilterSheet = true }
                         )
-                    },
-                    onClick = onOpenAbout
-                )
-                SettingsPreferenceDivider()
-                ArrowPreference(
-                    title = stringResource(R.string.settings_open_source_licenses),
-                    summary = stringResource(R.string.settings_open_source_licenses_subtitle),
-                    onClick = { onOpenOpenSourceLicenses() }
-                )
+                    }
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(8.dp)) }
+            // ── 卡 6：关于 ────────────────────────────────────────────
+            item(key = "card_about") {
+                SettingsCard {
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_version),
+                        summary = "v$appVersionText",
+                        startAction = { SettingsRowIcon(Icons.Outlined.Info) },
+                        endActions = {
+                            VersionUpdateBadge(
+                                isChecking = updateCheckStatus.isChecking,
+                                appHasUpdate = updateCheckStatus.appHasUpdate,
+                                moduleHasUpdate = updateCheckStatus.moduleHasUpdate,
+                                onAppClick = {
+                                    scope.launch {
+                                        openUpdateSheetFor(UpdateTarget.APP)
+                                    }
+                                },
+                                onModuleClick = {
+                                    scope.launch {
+                                        openUpdateSheetFor(UpdateTarget.MODULE)
+                                    }
+                                }
+                            )
+                        },
+                        onClick = onOpenAbout
+                    )
+                    SettingsPreferenceDivider()
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_open_source_licenses),
+                        summary = stringResource(R.string.settings_open_source_licenses_subtitle),
+                        startAction = { SettingsRowIcon(Icons.AutoMirrored.Outlined.LibraryBooks) },
+                        onClick = { onOpenOpenSourceLicenses() }
+                    )
+                }
+            }
+
+            // 底部留白：补浮动 NavBar 占位空间
+            item("trailing_space") {
+                Spacer(
+                    modifier = Modifier.height(
+                        com.box.app.ui.components.LocalFloatingNavBarSpaceDp.current + 8.dp
+                    )
+                )
+            }
         }
-    }
 }
 
 @Composable
@@ -1314,6 +1259,42 @@ private fun SettingsPreferenceSection(
             )
         }
     }
+}
+
+/**
+ * 无段标题的纯卡片容器（与设计稿一致：整页只用卡片分组，不用 SmallTitle）
+ */
+@Composable
+private fun SettingsCard(
+    content: @Composable ColumnScope.() -> Unit
+) {
+    // 底部 10dp 留白替代原 LazyColumn verticalArrangement.spacedBy(10dp)
+    // —— HyperXPage 内置 LazyColumn 无 spacedBy，靠卡片自带 padding 维持节奏
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+            .padding(bottom = 10.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            content = content
+        )
+    }
+}
+
+/**
+ * 行首通用图标 — 与 ToolsScreen 的 PreferenceIcon 完全一致：
+ * 默认 Icon 尺寸 + `padding(end = 16.dp)` 提供与标题之间的间距，tint 使用 onBackground
+ */
+@Composable
+private fun SettingsRowIcon(icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = MiuixTheme.colorScheme.onBackground,
+        modifier = Modifier.padding(end = 16.dp)
+    )
 }
 
 @Composable

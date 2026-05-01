@@ -2,6 +2,47 @@
     <!-- App -->
     <string name="app_name">Box</string>
 
+    <!-- Base Proxy Config screen -->
+    <string name="base_proxy_config_title">Base proxy config</string>
+    <string name="settings_base_proxy_subtitle">Core, mode, IPv6 and current config</string>
+    <string name="settings_other_proxy_title">Other proxy config</string>
+    <string name="settings_other_proxy_subtitle">Ports, DNS hijack and resource limits</string>
+    <string name="settings_theme_section_subtitle">Theme, blur, nav bar and scaling</string>
+    <string name="base_proxy_config_core_title">Core</string>
+    <string name="base_proxy_config_mode_title">Run mode</string>
+    <string name="base_proxy_config_ipv6_title">IPv6</string>
+    <string name="base_proxy_config_auto_overwrite_title">Auto overwrite</string>
+    <string name="base_proxy_config_auto_overwrite_summary">Overwrite existing config on start</string>
+    <string name="base_proxy_config_section_files">Config files</string>
+    <string name="base_proxy_config_no_files">No config files</string>
+    <string name="base_proxy_config_save_failed">Failed to save</string>
+
+    <!-- Other Proxy Config screen -->
+    <string name="other_proxy_config_section_ports">Ports</string>
+    <string name="other_proxy_config_port_tproxy">TPROXY port</string>
+    <string name="other_proxy_config_port_redirect">Redirect port</string>
+    <string name="other_proxy_config_port_hint">Port</string>
+    <string name="other_proxy_config_invalid_port">Port must be 1-65535</string>
+    <string name="other_proxy_config_section_capabilities">Proxy capabilities</string>
+    <string name="other_proxy_config_performance_mode_title">Performance mode</string>
+    <string name="other_proxy_config_performance_mode_summary">Low compatibility, enable with caution</string>
+    <string name="other_proxy_config_quic">QUIC</string>
+    <string name="other_proxy_config_mihomo_dns_forward">Mihomo DNS forwarding</string>
+    <string name="other_proxy_config_proxy_tcp">Proxy TCP</string>
+    <string name="other_proxy_config_proxy_udp">Proxy UDP</string>
+    <string name="other_proxy_config_section_dns_hijack">DNS hijack</string>
+    <string name="other_proxy_config_dns_hijack_tcp">DNS hijack TCP</string>
+    <string name="other_proxy_config_dns_hijack_udp">DNS hijack UDP</string>
+    <string name="other_proxy_config_dns_hijack_mode">DNS hijack policy</string>
+    <string name="other_proxy_config_dns_hijack_mode_disable">Disable</string>
+    <string name="other_proxy_config_section_resource_limit">Resource limit</string>
+    <string name="other_proxy_config_memcg_title">Memory limit</string>
+    <string name="other_proxy_config_memcg_hint">e.g. 100M</string>
+    <string name="other_proxy_config_cpuset_title">CPU core allocation</string>
+    <string name="other_proxy_config_cpuset_hint">e.g. 0-7 or 6-7</string>
+    <string name="other_proxy_config_blkio_title">Disk I/O weight</string>
+    <string name="other_proxy_config_blkio_hint">Weight</string>
+
     <!-- Common actions -->
     <string name="action_back">Back</string>
     <string name="action_retry">Retry</string>
@@ -387,6 +428,10 @@
     <string name="settings_update_status_both_available">APP + Module updates</string>
     <string name="settings_open_source_licenses">Open Source Licenses</string>
     <string name="settings_open_source_licenses_subtitle">Third-party libraries and notices</string>
+    <string name="settings_open_source_licenses_count">%1$d libraries</string>
+    <string name="settings_open_source_licenses_loading">Loading licenses…</string>
+    <string name="settings_open_source_licenses_empty">No license info found</string>
+    <string name="settings_open_source_licenses_no_url">No link available</string>
     <string name="settings_module_not_installed">Not installed</string>
     <string name="settings_failed_check_updates">Failed to check for updates</string>
     <string name="settings_already_up_to_date">You are already up to date</string>
@@ -875,6 +920,8 @@
     <string name="bottomsheet_about_value_github">GitHub</string>
     <string name="bottomsheet_about_value_telegram">Telegram</string>
     <string name="bottomsheet_about_value_author">boxproxy</string>
+    <string name="bottomsheet_about_secondary_modder">Secondary modder</string>
+    <string name="bottomsheet_about_value_secondary_modder">MiChongs</string>
 
     <string name="bottomsheet_release_type_prerelease">Prerelease</string>
     <string name="bottomsheet_release_type_stable">Stable</string>

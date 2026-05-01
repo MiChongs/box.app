@@ -2,6 +2,47 @@
     <!-- App -->
     <string name="app_name">Box</string>
 
+    <!-- Base Proxy Config screen -->
+    <string name="base_proxy_config_title">基础代理配置</string>
+    <string name="settings_base_proxy_subtitle">配置核心 模式 IPv6 和当前配置</string>
+    <string name="settings_other_proxy_title">其他代理配置</string>
+    <string name="settings_other_proxy_subtitle">调整端口 DNS 劫持与资源限制</string>
+    <string name="settings_theme_section_subtitle">调整主题 模糊 底栏和缩放</string>
+    <string name="base_proxy_config_core_title">核心选择</string>
+    <string name="base_proxy_config_mode_title">运行模式</string>
+    <string name="base_proxy_config_ipv6_title">IPv6</string>
+    <string name="base_proxy_config_auto_overwrite_title">自动覆写</string>
+    <string name="base_proxy_config_auto_overwrite_summary">启动时自动覆写已存在配置</string>
+    <string name="base_proxy_config_section_files">配置选择</string>
+    <string name="base_proxy_config_no_files">暂无配置文件</string>
+    <string name="base_proxy_config_save_failed">保存失败，请重试</string>
+
+    <!-- Other Proxy Config screen -->
+    <string name="other_proxy_config_section_ports">端口</string>
+    <string name="other_proxy_config_port_tproxy">TPROXY 端口</string>
+    <string name="other_proxy_config_port_redirect">Redirect 端口</string>
+    <string name="other_proxy_config_port_hint">端口号</string>
+    <string name="other_proxy_config_invalid_port">端口需为 1-65535</string>
+    <string name="other_proxy_config_section_capabilities">代理能力</string>
+    <string name="other_proxy_config_performance_mode_title">性能模式</string>
+    <string name="other_proxy_config_performance_mode_summary">兼容性不高，谨慎开启</string>
+    <string name="other_proxy_config_quic">QUIC</string>
+    <string name="other_proxy_config_mihomo_dns_forward">Mihomo DNS 转发</string>
+    <string name="other_proxy_config_proxy_tcp">代理 TCP</string>
+    <string name="other_proxy_config_proxy_udp">代理 UDP</string>
+    <string name="other_proxy_config_section_dns_hijack">DNS 劫持</string>
+    <string name="other_proxy_config_dns_hijack_tcp">DNS 劫持 TCP</string>
+    <string name="other_proxy_config_dns_hijack_udp">DNS 劫持 UDP</string>
+    <string name="other_proxy_config_dns_hijack_mode">DNS 劫持策略</string>
+    <string name="other_proxy_config_dns_hijack_mode_disable">禁用</string>
+    <string name="other_proxy_config_section_resource_limit">资源限制</string>
+    <string name="other_proxy_config_memcg_title">内存限制</string>
+    <string name="other_proxy_config_memcg_hint">如 100M</string>
+    <string name="other_proxy_config_cpuset_title">CPU 核心分配</string>
+    <string name="other_proxy_config_cpuset_hint">如 0-7 或 6-7</string>
+    <string name="other_proxy_config_blkio_title">磁盘 I/O 权重</string>
+    <string name="other_proxy_config_blkio_hint">权重</string>
+
     <!-- Common actions -->
     <string name="action_back">返回</string>
     <string name="action_retry">重试</string>
@@ -387,6 +428,10 @@
     <string name="settings_update_status_both_available">APP + 模块有更新</string>
     <string name="settings_open_source_licenses">开源许可证</string>
     <string name="settings_open_source_licenses_subtitle">第三方库与许可声明</string>
+    <string name="settings_open_source_licenses_count">%1$d 个开源库</string>
+    <string name="settings_open_source_licenses_loading">正在加载许可信息…</string>
+    <string name="settings_open_source_licenses_empty">未找到许可信息</string>
+    <string name="settings_open_source_licenses_no_url">未提供链接</string>
     <string name="settings_module_not_installed">未安装</string>
     <string name="settings_failed_check_updates">检查更新失败</string>
     <string name="settings_already_up_to_date">已经是最新版本</string>
@@ -875,6 +920,8 @@
     <string name="bottomsheet_about_value_github">GitHub</string>
     <string name="bottomsheet_about_value_telegram">Telegram</string>
     <string name="bottomsheet_about_value_author">boxproxy</string>
+    <string name="bottomsheet_about_secondary_modder">二改</string>
+    <string name="bottomsheet_about_value_secondary_modder">MiChongs</string>
 
     <string name="bottomsheet_release_type_prerelease">预发布版</string>
     <string name="bottomsheet_release_type_stable">稳定版</string>
