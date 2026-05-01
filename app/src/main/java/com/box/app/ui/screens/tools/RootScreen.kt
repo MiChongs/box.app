@@ -63,10 +63,9 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
+import dev.lackluster.hyperx.ui.layout.HyperXPage
 
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
@@ -344,23 +343,16 @@ fun ToolsRootScreen(
         }
     }
 
-    // 标准 Miuix Scaffold + SmallTopAppBar
-    Scaffold(
-        topBar = {
-            SmallTopAppBar(
-                title = stringResource(R.string.tools_title),
-                subtitle = stringResource(R.string.tools_subtitle)
-            )
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = contentPaddingWithNavBars(
-                top = innerPadding.calculateTopPadding()
-            ),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
+    // HyperXPage + HyperXLayoutConfig：模糊跟随全局磨砂设置项；
+    // HyperXPage 内部正确处理 topBar 的透明度、backdrop 与 overlapped fraction，
+    // 解决直接调 HyperXScaffold 时因 TopAppBar 不透明导致的"模糊内容不正确"问题
+    // LocalHyperXLayoutConfig 已由根级 HyperXAppLayout 提供（跟随磨砂设置项）
+    // HyperXPage 直接读取，无需在每个页面再次注入
+    HyperXPage(
+        title = stringResource(R.string.tools_title),
+        listState = listState,
+        navigationIcon = {} // Tools 是底部 tab 页面，不需要返回按钮
+    ) {
             // ─── 配置管理 ──────────────────────────────────────────
             item {
                 PreferenceSection(title = stringResource(R.string.tools_section_config_title)) {
@@ -543,9 +535,16 @@ fun ToolsRootScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(8.dp)) }
+            // 底部留白：HyperXPage 内部 LazyColumn 仅含 systemBars 插入边距，
+            // 浮动 NavBar 的额外占位高度（LocalFloatingNavBarSpaceDp）需手动补
+            item("trailing_space") {
+                Spacer(
+                    modifier = Modifier.height(
+                        com.box.app.ui.components.LocalFloatingNavBarSpaceDp.current + 8.dp
+                    )
+                )
+            }
         }
-    }
 }
 
 // ─── 更新状态 ─────────────────────────────────────────────────────────────────

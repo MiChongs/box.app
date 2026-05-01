@@ -237,7 +237,10 @@ private fun AboutContent(
                 },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // App 图标
+            // App 图标 — adaptive-icon 风格：background overlay + foreground 双层叠加渲染
+            // 之前用 `.background(Color.White)` 硬编码白底，丢失了 ic_box_background.xml
+            // 中可能携带的渐变/装饰；改为先铺一层 background drawable（fillMaxSize 充满
+            // 圆角容器），再叠加 foreground drawable，与系统启动器 adaptive-icon 渲染一致。
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -249,21 +252,29 @@ private fun AboutContent(
                         scaleX = 1f - (iconProgress * 0.05f)
                         scaleY = 1f - (iconProgress * 0.05f)
                     }
-                    .background(Color.White)
                     .onGloballyPositioned { coordinates ->
                         if (iconY != 0f) return@onGloballyPositioned
                         val y = coordinates.positionInWindow().y
                         iconY = y + coordinates.size.height
                     }
             ) {
+                // 底层：background overlay
                 Image(
-                    modifier = Modifier.size(74.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    painter = painterResource(R.drawable.ic_box_background),
+                    contentDescription = null
+                )
+                // 顶层：foreground icon
+                Image(
+                    modifier = Modifier.fillMaxSize(),
                     painter = painterResource(R.drawable.ic_box_foreground),
                     contentDescription = null
                 )
             }
 
-            // 应用名 — textureBlur 毛玻璃文字
+            // 应用名 — textureBlur 毛玻璃文字（miuix title1 + ExtraBold + 紧凑字距）
+            // 字体优化：miuix textStyles.title1 是项目标题级 miuix 排印样式，叠加 ExtraBold
+            // 字重和 -1sp letterSpacing 让 logo 文字更醒目、现代，符合 HyperOS 视觉语言。
             Text(
                 modifier = Modifier
                     .padding(top = 12.dp, bottom = 5.dp)
@@ -288,8 +299,11 @@ private fun AboutContent(
                     ),
                 text = stringResource(R.string.bottomsheet_about_title),
                 color = colorScheme.onBackground,
-                fontWeight = FontWeight.Bold,
-                fontSize = 35.sp
+                style = MiuixTheme.textStyles.title1.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 44.sp,
+                    letterSpacing = (-1).sp
+                )
             )
 
             // 版本号
@@ -388,10 +402,11 @@ private fun AboutContent(
                                 )
                             },
                             onClick = {
-                                val url = if (BuildConfig.FLAVOR == "bfr")
-                                    "https://t.me/nothing_taamarin"
-                                else "https://t.me/zero_o0"
-                                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/cryingbox"))
+                                    )
+                                }
                             }
                         )
                     }
@@ -424,6 +439,23 @@ private fun AboutContent(
                                 )
                             },
                             onClick = {}
+                        )
+                        ArrowPreference(
+                            title = stringResource(R.string.bottomsheet_about_secondary_modder),
+                            endActions = {
+                                Text(
+                                    text = stringResource(R.string.bottomsheet_about_value_secondary_modder),
+                                    fontSize = MiuixTheme.textStyles.body2.fontSize,
+                                    color = colorScheme.onSurfaceVariantActions
+                                )
+                            },
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/MiChongs"))
+                                    )
+                                }
+                            }
                         )
                     }
 
