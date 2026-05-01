@@ -958,9 +958,8 @@ object HomeRepository {
         if (shellWarmed) return
         shellWarmed = true
         runCatching {
-            // 预热 root shell 池（默认 3 个），避免后续长命令（如模块重启）串行阻塞
-            // 日志 tail、状态查询、配置读写等路径
-            ShellExecutor.warmUpRootShell()
+            // 预热 libsu 全局 cached shell，缩短首次 root 命令的冷启动延迟
+            ShellExecutor.warmUpRootShell(minSessions = 1)
             ShellExecutor.execute("id -u 2>/dev/null")
         }
     }

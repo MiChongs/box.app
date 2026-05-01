@@ -166,7 +166,8 @@ fun HomeHeroCard(
     serviceState: HomeServiceState,
     onStart: () -> Unit,
     onStop: () -> Unit,
-    onReload: () -> Unit
+    onReload: () -> Unit,
+    onOpenBaseProxyConfig: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
 
@@ -654,7 +655,9 @@ fun HomeHeroCard(
                 cornerRadius = 22.dp,
                 insideMargin = PaddingValues(0.dp),
                 colors = CardDefaults.defaultColors(color = animatedContainerColor),
-                onClick = { if (statusEditable) showCoreSheet = true },
+                // 仅在非运行状态可点：进入基础代理配置二级页面
+                // 运行中时禁用点击，避免误触改动正在生效的核心/模式/IPv6 等
+                onClick = { if (statusEditable) onOpenBaseProxyConfig() },
                 showIndication = statusEditable,
                 pressFeedbackType = PressFeedbackType.Sink
             ) {

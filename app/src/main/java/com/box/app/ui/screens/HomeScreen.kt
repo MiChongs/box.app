@@ -4,10 +4,13 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.animateBounds
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -18,18 +21,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.windowInsetsPadding
-import android.content.res.Configuration
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -38,16 +39,15 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Hub
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,55 +55,50 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.LookaheadScope
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.kyant.shapes.Capsule
+import com.box.app.R
+import com.box.app.data.backend.BoxApi
+import com.box.app.data.backend.HomeMetricsApi
+import com.box.app.data.model.IpMode
+import com.box.app.data.model.ServiceStatus
+import com.box.app.data.repo.HomeRepository
+import com.box.app.ui.components.bottomsheets.SheetBlurEffect
+import com.box.app.ui.components.bottomsheets.SystemBottomSheet
+import com.box.app.ui.components.contentPaddingWithNavBars
+import com.box.app.ui.components.home.HomeCardModel
+import com.box.app.ui.components.home.HomeHeader
+import com.box.app.ui.components.home.HomeHeroCard
+import com.box.app.ui.components.home.HomeLatencyCard
+import com.box.app.ui.components.home.HomeMetricKind
+import com.box.app.ui.components.home.HomeQuickActions
+import com.box.app.ui.components.home.HomeTwoColumnGrid
+import com.box.app.utils.LatencyTargetsManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-
-import com.box.app.data.backend.ShellExecutor
-import com.box.app.data.backend.HomeMetricsApi
-import com.box.app.data.model.ServiceStatus
-import com.box.app.data.model.IpMode
-import com.box.app.data.repo.HomeRepository
-import com.box.app.ui.components.home.HomeHeader
-import com.box.app.ui.components.home.HomeHeroCard
-import com.box.app.ui.components.home.HomeLatencyCard
-import com.box.app.ui.components.bottomsheets.SheetBlurEffect
-import com.box.app.ui.components.contentPaddingWithNavBars
-import com.box.app.ui.components.home.HomeQuickActions
-import com.box.app.ui.components.home.HomeTwoColumnGrid
-import com.box.app.ui.components.home.HomeCardModel
-import com.box.app.ui.components.home.HomeMetricKind
-import com.box.app.ui.components.bottomsheets.SystemBottomSheet
-import com.box.app.data.backend.BoxApi
-import com.box.app.R
-import com.box.app.utils.LatencyTargetsManager
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
 private fun countryCodeToFlagEmoji(countryCode: String): String {
     val cc = countryCode.trim().uppercase()
@@ -126,15 +121,16 @@ fun HomeScreen(
     onOpenSubStore: () -> Unit,
     onOpenNetSpeed: () -> Unit = {},
     onOpenSmartDns: (() -> Unit)? = null,
-    onOpenSubscriptionDetail: () -> Unit = {}
+    onOpenSubscriptionDetail: () -> Unit = {},
+    onOpenBaseProxyConfig: () -> Unit = {},
+    onOpenLatencyTargets: () -> Unit = {}
 ) {
-    val scrollBehavior = MiuixScrollBehavior()
-
     // SmartDNS 模块存在检测（仅在模块安装时显示快捷入口）
     var smartDnsInstalled by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val res = com.box.app.data.backend.ShellExecutor.execute("[ -f /data/adb/smartdns/smartdns/smartdns.conf ] && echo ok")
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
+            val res =
+                com.box.app.data.backend.ShellExecutor.execute("[ -f /data/adb/smartdns/smartdns/smartdns.conf ] && echo ok")
             smartDnsInstalled = res.stdout.trim() == "ok"
         }
     }
@@ -146,8 +142,10 @@ fun HomeScreen(
     val metricsState by HomeRepository.metricsState.collectAsState()
     val context = LocalContext.current
 
-    val subPrefs = remember { context.getSharedPreferences("subscription_settings", Context.MODE_PRIVATE) }
-    val dialogPrefs = remember { context.getSharedPreferences("dialog_settings", Context.MODE_PRIVATE) }
+    val subPrefs =
+        remember { context.getSharedPreferences("subscription_settings", Context.MODE_PRIVATE) }
+    val dialogPrefs =
+        remember { context.getSharedPreferences("dialog_settings", Context.MODE_PRIVATE) }
     val layoutPrefs = remember { context.getSharedPreferences("home_layout", Context.MODE_PRIVATE) }
 
     val defaultOrder = remember {
@@ -170,10 +168,8 @@ fun HomeScreen(
     }
 
     fun persist(order: List<String>, hidden: Set<String>) {
-        layoutPrefs.edit()
-            .putString("order", order.joinToString(","))
-            .putString("hidden", hidden.joinToString(","))
-            .apply()
+        layoutPrefs.edit().putString("order", order.joinToString(","))
+            .putString("hidden", hidden.joinToString(",")).apply()
     }
 
     val defaultMetricOrder = remember {
@@ -196,10 +192,8 @@ fun HomeScreen(
     }
 
     fun persistMetric(order: List<String>, hidden: Set<String>) {
-        layoutPrefs.edit()
-            .putString("metric_order", order.joinToString(","))
-            .putString("metric_hidden", hidden.joinToString(","))
-            .apply()
+        layoutPrefs.edit().putString("metric_order", order.joinToString(","))
+            .putString("metric_hidden", hidden.joinToString(",")).apply()
     }
 
     var sectionOrder by remember { mutableStateOf(loadOrder()) }
@@ -257,9 +251,7 @@ fun HomeScreen(
             backgroundColor = sheetBg,
         ) {
             IpGeoBottomSheet(
-                loading = ipGeoLoading,
-                ipv4 = ipGeoV4,
-                ipv6 = ipGeoV6
+                loading = ipGeoLoading, ipv4 = ipGeoV4, ipv6 = ipGeoV6
             )
             Spacer(modifier = Modifier.height(navBarPadding))
         }
@@ -311,9 +303,11 @@ fun HomeScreen(
         if (blurEnabled) SheetBlurEffect()
         WindowBottomSheet(
             show = showHomeLayoutSheet,
+            title = stringResource(R.string.home_layout_title),
             onDismissRequest = { showHomeLayoutSheet = false },
-            backgroundColor = sheetBg,
-            dragHandleColor = Color.Transparent
+            backgroundColor = sheetBg
+            // 不再透明化 dragHandleColor，直接复用 WindowBottomSheet 内置 miuix 拖动条；
+            // 旧实现额外画了一条 HomeSheetHandle()，导致顶部出现两条拖动条
         ) {
             HomeLayoutSheetContent(
                 sectionOrder = sectionOrder,
@@ -361,10 +355,8 @@ fun HomeScreen(
     }
 
     val dialogKey = debouncedDialogKey
-    val shouldShowDialog = env.checked &&
-        dialogKey.isNotBlank() &&
-        dialogKey == rawDialogKey &&
-        dialogKey != lastDialogKey
+    val shouldShowDialog =
+        env.checked && dialogKey.isNotBlank() && dialogKey == rawDialogKey && dialogKey != lastDialogKey
 
     if (shouldShowDialog) {
         OverlayDialog(
@@ -385,62 +377,55 @@ fun HomeScreen(
             summaryColor = MiuixTheme.colorScheme.onSurfaceSecondary
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End
             ) {
                 when (dialogKey) {
                     "module" -> {
                         TextButton(
-                            text = stringResource(R.string.home_env_btn_skip),
-                            onClick = {
+                            text = stringResource(R.string.home_env_btn_skip), onClick = {
                                 lastDialogKey = dialogKey
                                 dialogPrefs.edit().putBoolean("hide_module_dialog", true).apply()
-                            }
-                        )
+                            })
                         TextButton(
-                            text = stringResource(R.string.home_env_btn_exit),
-                            onClick = {
+                            text = stringResource(R.string.home_env_btn_exit), onClick = {
                                 lastDialogKey = dialogKey
                                 (context as? Activity)?.finish()
-                            }
-                        )
+                            })
                         TextButton(
-                            text = stringResource(R.string.home_env_btn_install),
-                            onClick = {
+                            text = stringResource(R.string.home_env_btn_install), onClick = {
                                 lastDialogKey = dialogKey
                                 try {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(moduleLink)))
+                                    context.startActivity(
+                                        Intent(
+                                            Intent.ACTION_VIEW, Uri.parse(moduleLink)
+                                        )
+                                    )
                                 } catch (_: Exception) {
                                 } finally {
                                     (context as? Activity)?.finish()
                                 }
-                            }
-                        )
+                            })
                     }
+
                     "scripts" -> {
                         TextButton(
-                            text = stringResource(R.string.home_env_btn_skip),
-                            onClick = {
+                            text = stringResource(R.string.home_env_btn_skip), onClick = {
                                 lastDialogKey = dialogKey
                                 dialogPrefs.edit().putBoolean("hide_scripts_dialog", true).apply()
-                            }
-                        )
+                            })
                         TextButton(
-                            text = stringResource(R.string.home_env_btn_exit),
-                            onClick = {
+                            text = stringResource(R.string.home_env_btn_exit), onClick = {
                                 lastDialogKey = dialogKey
                                 (context as? Activity)?.finish()
-                            }
-                        )
+                            })
                     }
+
                     else -> {
                         TextButton(
-                            text = stringResource(R.string.home_env_btn_ok),
-                            onClick = {
+                            text = stringResource(R.string.home_env_btn_ok), onClick = {
                                 lastDialogKey = dialogKey
                                 (context as? Activity)?.finish()
-                            }
-                        )
+                            })
                     }
                 }
             }
@@ -451,18 +436,21 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         fun parseProxyTrafficFilter(text: String): List<String> {
-            return text
-                .split(',', '\n')
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
+            return text.split(',', '\n').map { it.trim() }.filter { it.isNotEmpty() }
         }
 
         val defaultProxyTrafficFilter = "DIRECT,REJECT"
-        val filterText = subPrefs.getString("proxy_traffic_filter_chains", defaultProxyTrafficFilter) ?: defaultProxyTrafficFilter
+        val filterText =
+            subPrefs.getString("proxy_traffic_filter_chains", defaultProxyTrafficFilter)
+                ?: defaultProxyTrafficFilter
         BoxApi.setProxyTrafficFilterChains(parseProxyTrafficFilter(filterText))
 
         HomeRepository.setUseClashApiForSubscription(subPrefs.getBoolean("use_clash_api", false))
-        HomeRepository.setUseClashApiForNetSpeed(subPrefs.getBoolean("use_clash_api_net_speed", false))
+        HomeRepository.setUseClashApiForNetSpeed(
+            subPrefs.getBoolean(
+                "use_clash_api_net_speed", false
+            )
+        )
         HomeRepository.startPolling()
     }
 
@@ -485,11 +473,12 @@ fun HomeScreen(
 
     // 当状态栏为 OPAQUE 时 AppTheme 已全局添加 statusBars padding，此处不再重复
     val systemBarSettings by com.box.app.utils.ThemeManager.systemBarSettings.collectAsState()
-    val statusBarInset = if (systemBarSettings.statusBar == com.box.app.utils.SystemBarMode.OPAQUE) {
-        0.dp
-    } else {
-        WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    }
+    val statusBarInset =
+        if (systemBarSettings.statusBar == com.box.app.utils.SystemBarMode.OPAQUE) {
+            0.dp
+        } else {
+            WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        }
 
     // 根据屏幕可用高度（减去状态栏）决定布局密度
     val screenHeightDp = LocalConfiguration.current.screenHeightDp.dp
@@ -517,8 +506,7 @@ fun HomeScreen(
         val useCompactQuickActions = isCompact && !isMediumWidth
 
         Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.TopCenter
+            modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter
         ) {
             LazyColumn(
                 modifier = Modifier
@@ -529,14 +517,12 @@ fun HomeScreen(
                         } else {
                             Modifier
                         }
-                    ),
-                contentPadding = contentPaddingWithNavBars(
+                    ), contentPadding = contentPaddingWithNavBars(
                     start = pagePadding,
                     end = pagePadding,
                     top = statusBarInset + 4.dp,
                     extraBottom = 8.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(sectionGap)
+                ), verticalArrangement = Arrangement.spacedBy(sectionGap)
             ) {
                 item(key = "home_header") {
                     HomeHeader(onEdit = { showHomeLayoutSheet = true })
@@ -548,9 +534,11 @@ fun HomeScreen(
                                 serviceState = serviceState,
                                 onStart = { HomeRepository.startService() },
                                 onStop = { HomeRepository.stopService() },
-                                onReload = { HomeRepository.restartService() }
+                                onReload = { HomeRepository.restartService() },
+                                onOpenBaseProxyConfig = onOpenBaseProxyConfig
                             )
                         }
+
                         "quick" -> item(key = "home_quick") {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 SmallTitle(
@@ -567,89 +555,123 @@ fun HomeScreen(
                                 )
                             }
                         }
+
                         "latency" -> item(key = "home_latency") {
                             HomeLatencyCard(
-                                label1 = latencyTargets.getOrNull(0)?.name ?: stringResource(R.string.home_latency_baidu),
+                                label1 = latencyTargets.getOrNull(0)?.name
+                                    ?: stringResource(R.string.home_latency_baidu),
                                 baidu = metricsState.latencyBaiduMs,
-                                label2 = latencyTargets.getOrNull(1)?.name ?: stringResource(R.string.home_latency_cloudflare),
+                                label2 = latencyTargets.getOrNull(1)?.name
+                                    ?: stringResource(R.string.home_latency_cloudflare),
                                 cloudflare = metricsState.latencyCloudflareMs,
-                                label3 = latencyTargets.getOrNull(2)?.name ?: stringResource(R.string.home_latency_google),
+                                label3 = latencyTargets.getOrNull(2)?.name
+                                    ?: stringResource(R.string.home_latency_google),
                                 google = metricsState.latencyGoogleMs,
                                 loading = metricsState.latencyLoading,
                                 onRefresh = { HomeRepository.refreshLatencyNow() },
+                                onOpenTargets = onOpenLatencyTargets,
                                 compact = isCompact && !isMediumWidth
                             )
                         }
+
                         "grid" -> item(key = "home_grid") {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 SmallTitle(
                                     text = stringResource(R.string.home_layout_section_grid),
                                     insideMargin = PaddingValues(horizontal = 0.dp, vertical = 8.dp)
                                 )
-                                val metricModels = metricOrder
-                                .filter { it !in hiddenMetrics }
-                                .mapNotNull { mid ->
-                                    when (mid) {
-                                        "ip" -> HomeCardModel(
-                                            title = stringResource(R.string.home_card_ip),
-                                            value = metricsState.ip,
-                                            subtitle = if (metricsState.ipMode == IpMode.LAN) {
-                                                stringResource(R.string.home_ip_subtitle_interface, metricsState.lanInterface.takeIf { it.isNotBlank() && it != "-" } ?: "-")
-                                            } else {
-                                                stringResource(R.string.home_ip_subtitle_region, metricsState.publicCountry.takeIf { it.isNotBlank() && it != "-" } ?: metricsState.publicCountryCode.takeIf { it.isNotBlank() } ?: "-")
-                                            },
-                                            kind = HomeMetricKind.Ip,
-                                            accent = MiuixTheme.colorScheme.primary,
-                                            badgeText = if (metricsState.ipMode.name == "LAN") {
-                                                stringResource(R.string.home_ip_badge_lan)
-                                            } else {
-                                                val cc = metricsState.publicCountryCode.trim()
-                                                val flag = countryCodeToFlagEmoji(cc)
-                                                if (flag.isBlank()) stringResource(R.string.home_ip_badge_pub) else stringResource(R.string.home_ip_badge_pub_with_flag, flag)
-                                            },
-                                            cornerActionIcon = if (metricsState.ipMode == IpMode.PUBLIC) Icons.AutoMirrored.Filled.KeyboardArrowRight else null,
-                                            onCornerAction = if (metricsState.ipMode == IpMode.PUBLIC) { { showIpGeoDialog = true } } else null,
-                                            onClick = { HomeRepository.toggleIpMode() }
-                                        )
-                                        "net_speed" -> HomeCardModel(
-                                            title = stringResource(R.string.home_card_net_speed),
-                                            value = metricsState.netDown,
-                                            subtitle = if (metricsState.netUp == "-") stringResource(R.string.home_net_up_unknown) else stringResource(R.string.home_net_up_value, metricsState.netUp),
-                                            kind = HomeMetricKind.Speed,
-                                            accent = MiuixTheme.colorScheme.primary,
-                                            sparkDown = metricsState.netDownHistory,
-                                            sparkUp = metricsState.netUpHistory,
-                                            onClick = onOpenNetSpeed
-                                        )
-                                        "subscription" -> HomeCardModel(
-                                            title = stringResource(R.string.home_card_subscription),
-                                            value = if (metricsState.subscriptionTotalBytes > java.math.BigInteger.ZERO) HomeMetricsApi.formatBytes(metricsState.subscriptionUsedBytes) else "-",
-                                            subtitle = if (metricsState.subscriptionTotalBytes > java.math.BigInteger.ZERO) HomeMetricsApi.formatBytes(metricsState.subscriptionTotalBytes) else "-",
-                                            kind = HomeMetricKind.Subscription,
-                                            accent = MiuixTheme.colorScheme.onTertiaryContainer,
-                                            progress = metricsState.subscriptionProgress,
-                                            badgeText = metricsState.subscriptionProgress?.let {
-                                                val remainPct = ((1f - it.coerceIn(0f, 1f)) * 100f).toInt().coerceIn(0, 100)
-                                                stringResource(R.string.home_subscription_remain_badge, remainPct)
-                                            },
-                                            onClick = {
-                                                if (isSubscriptionClashApiEnabled) HomeRepository.refreshSubscriptionNow()
-                                                else HomeRepository.refreshSubscriptionIfUrlsChanged()
-                                                onOpenSubscriptionDetail()
+                                val metricModels =
+                                    metricOrder.filter { it !in hiddenMetrics }.mapNotNull { mid ->
+                                            when (mid) {
+                                                "ip" -> HomeCardModel(
+                                                    title = stringResource(R.string.home_card_ip),
+                                                    value = metricsState.ip,
+                                                    subtitle = if (metricsState.ipMode == IpMode.LAN) {
+                                                        stringResource(
+                                                            R.string.home_ip_subtitle_interface,
+                                                            metricsState.lanInterface.takeIf { it.isNotBlank() && it != "-" }
+                                                                ?: "-")
+                                                    } else {
+                                                        stringResource(
+                                                            R.string.home_ip_subtitle_region,
+                                                            metricsState.publicCountry.takeIf { it.isNotBlank() && it != "-" }
+                                                                ?: metricsState.publicCountryCode.takeIf { it.isNotBlank() }
+                                                                ?: "-")
+                                                    },
+                                                    kind = HomeMetricKind.Ip,
+                                                    accent = MiuixTheme.colorScheme.primary,
+                                                    badgeText = if (metricsState.ipMode.name == "LAN") {
+                                                        stringResource(R.string.home_ip_badge_lan)
+                                                    } else {
+                                                        val cc =
+                                                            metricsState.publicCountryCode.trim()
+                                                        val flag = countryCodeToFlagEmoji(cc)
+                                                        if (flag.isBlank()) stringResource(R.string.home_ip_badge_pub) else stringResource(
+                                                            R.string.home_ip_badge_pub_with_flag,
+                                                            flag
+                                                        )
+                                                    },
+                                                    cornerActionIcon = if (metricsState.ipMode == IpMode.PUBLIC) Icons.AutoMirrored.Filled.KeyboardArrowRight else null,
+                                                    onCornerAction = if (metricsState.ipMode == IpMode.PUBLIC) {
+                                                        { showIpGeoDialog = true }
+                                                    } else null,
+                                                    onClick = { HomeRepository.toggleIpMode() })
+
+                                                "net_speed" -> HomeCardModel(
+                                                    title = stringResource(R.string.home_card_net_speed),
+                                                    value = metricsState.netDown,
+                                                    subtitle = if (metricsState.netUp == "-") stringResource(
+                                                        R.string.home_net_up_unknown
+                                                    ) else stringResource(
+                                                        R.string.home_net_up_value,
+                                                        metricsState.netUp
+                                                    ),
+                                                    kind = HomeMetricKind.Speed,
+                                                    accent = MiuixTheme.colorScheme.primary,
+                                                    sparkDown = metricsState.netDownHistory,
+                                                    sparkUp = metricsState.netUpHistory,
+                                                    onClick = onOpenNetSpeed
+                                                )
+
+                                                "subscription" -> HomeCardModel(
+                                                    title = stringResource(R.string.home_card_subscription),
+                                                    value = if (metricsState.subscriptionTotalBytes > java.math.BigInteger.ZERO) HomeMetricsApi.formatBytes(
+                                                        metricsState.subscriptionUsedBytes
+                                                    ) else "-",
+                                                    subtitle = if (metricsState.subscriptionTotalBytes > java.math.BigInteger.ZERO) HomeMetricsApi.formatBytes(
+                                                        metricsState.subscriptionTotalBytes
+                                                    ) else "-",
+                                                    kind = HomeMetricKind.Subscription,
+                                                    accent = MiuixTheme.colorScheme.onTertiaryContainer,
+                                                    progress = metricsState.subscriptionProgress,
+                                                    badgeText = metricsState.subscriptionProgress?.let {
+                                                        val remainPct = ((1f - it.coerceIn(
+                                                            0f,
+                                                            1f
+                                                        )) * 100f).toInt().coerceIn(0, 100)
+                                                        stringResource(
+                                                            R.string.home_subscription_remain_badge,
+                                                            remainPct
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        if (isSubscriptionClashApiEnabled) HomeRepository.refreshSubscriptionNow()
+                                                        else HomeRepository.refreshSubscriptionIfUrlsChanged()
+                                                        onOpenSubscriptionDetail()
+                                                    })
+
+                                                "system" -> HomeCardModel(
+                                                    title = stringResource(R.string.home_card_system),
+                                                    value = metricsState.cpu,
+                                                    subtitle = metricsState.ram,
+                                                    kind = HomeMetricKind.System,
+                                                    accent = MiuixTheme.colorScheme.secondary,
+                                                    isActive = isRunning,
+                                                    onClick = { showSystemDialog = true })
+
+                                                else -> null
                                             }
-                                        )
-                                        "system" -> HomeCardModel(
-                                            title = stringResource(R.string.home_card_system),
-                                            value = metricsState.cpu,
-                                            subtitle = metricsState.ram,
-                                            kind = HomeMetricKind.System,
-                                            accent = MiuixTheme.colorScheme.secondary,
-                                            isActive = isRunning,
-                                            onClick = { showSystemDialog = true }
-                                        )
-                                        else -> null
-                                    }
-                                }
+                                        }
                                 HomeTwoColumnGrid(models = metricModels, columns = metricColumns)
                             }
                         }
@@ -676,24 +698,15 @@ private fun homeMetricTitleRes(id: String): Int? = when (id) {
     else -> null
 }
 
-@Composable
-private fun HomeSheetHandle() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp, bottom = 6.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .align(androidx.compose.ui.Alignment.Center)
-                .clearAndSetSemantics { }
-                .size(width = 28.dp, height = 3.dp)
-                .clip(Capsule())
-                .background(MiuixTheme.colorScheme.outline.copy(alpha = 0.42f))
-        )
-    }
-}
-
+/**
+ * 主页布局编辑底部表单内容
+ * 使用 miuix 标准模式：SmallTitle 段标题（卡外）+ Card 内分隔的 BasicComponent 行 + 末位 IconButton 操作
+ * 底部表单自带的 drag handle / title 由 WindowBottomSheet 提供，避免重复
+ *
+ * 位置改变动画：每段卡片包裹在 LookaheadScope 中，行使用 Modifier.animateBounds 跟踪
+ * 上下移、隐藏后的位置形变；卡片自身用 animateContentSize 处理高度增减
+ */
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun HomeLayoutSheetContent(
     sectionOrder: List<String>,
@@ -708,221 +721,254 @@ private fun HomeLayoutSheetContent(
     onUnhideMetric: (String) -> Unit
 ) {
     val scrollState = rememberScrollState()
-    val visibleSections = remember(sectionOrder, hiddenSections) { sectionOrder.filter { it !in hiddenSections } }
-    val hiddenSectionList = remember(sectionOrder, hiddenSections) { sectionOrder.filter { it in hiddenSections } }
-    val visibleMetrics = remember(metricOrder, hiddenMetrics) { metricOrder.filter { it !in hiddenMetrics } }
-    val hiddenMetricList = remember(metricOrder, hiddenMetrics) { metricOrder.filter { it in hiddenMetrics } }
+    val visibleSections =
+        remember(sectionOrder, hiddenSections) { sectionOrder.filter { it !in hiddenSections } }
+    val hiddenSectionList =
+        remember(sectionOrder, hiddenSections) { sectionOrder.filter { it in hiddenSections } }
+    val visibleMetrics =
+        remember(metricOrder, hiddenMetrics) { metricOrder.filter { it !in hiddenMetrics } }
+    val hiddenMetricList =
+        remember(metricOrder, hiddenMetrics) { metricOrder.filter { it in hiddenMetrics } }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .verticalScroll(scrollState)
     ) {
-        HomeSheetHandle()
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Column(
-            modifier = Modifier.verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            HomeLayoutGroupCard(title = stringResource(R.string.home_layout_title)) {
-                Text(
-                    text = stringResource(R.string.home_layout_visible),
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceSecondary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                visibleSections.forEachIndexed { idx, id ->
-                    HomeLayoutRow(
-                        title = stringResource(homeSectionTitleRes(id) ?: R.string.home_layout_title),
-                        onMoveUp = { onMoveSection(id, -1) },
-                        onMoveDown = { onMoveSection(id, 1) },
-                        onHide = { onHideSection(id) }
-                    )
-                    if (idx != visibleSections.lastIndex) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                }
-
-                if (hiddenSectionList.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = stringResource(R.string.home_layout_hidden),
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceSecondary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    hiddenSectionList.forEachIndexed { idx, id ->
-                        HomeLayoutRestoreRow(
-                            title = stringResource(homeSectionTitleRes(id) ?: R.string.home_layout_hidden),
-                            onClick = { onUnhideSection(id) }
-                        )
-                        if (idx != hiddenSectionList.lastIndex) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                    }
-                }
+        // ── 主区块：可见模块 ────────────────────────────────────────────
+        HomeLayoutSection(title = stringResource(R.string.home_layout_visible)) { lookahead ->
+            visibleSections.forEachIndexed { idx, id ->
+                HomeLayoutBasicRow(
+                    lookaheadScope = lookahead,
+                    rowKey = "vis_$id",
+                    title = stringResource(homeSectionTitleRes(id) ?: R.string.home_layout_title),
+                    canMoveUp = idx > 0,
+                    canMoveDown = idx < visibleSections.lastIndex,
+                    showDivider = idx != visibleSections.lastIndex,
+                    onMoveUp = { onMoveSection(id, -1) },
+                    onMoveDown = { onMoveSection(id, 1) },
+                    onHide = { onHideSection(id) })
             }
-
-            if ("grid" !in hiddenSections) {
-                HomeLayoutGroupCard(title = stringResource(R.string.home_layout_metrics_title)) {
-                    visibleMetrics.forEachIndexed { idx, id ->
-                        HomeLayoutRow(
-                            title = stringResource(homeMetricTitleRes(id) ?: R.string.home_layout_metrics_title),
-                            onMoveUp = { onMoveMetric(id, -1) },
-                            onMoveDown = { onMoveMetric(id, 1) },
-                            onHide = { onHideMetric(id) }
-                        )
-                        if (idx != visibleMetrics.lastIndex) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                    }
-
-                    if (hiddenMetricList.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = stringResource(R.string.home_layout_hidden_metrics_title),
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceSecondary
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        hiddenMetricList.forEachIndexed { idx, id ->
-                            HomeLayoutRestoreRow(
-                                title = stringResource(homeMetricTitleRes(id) ?: R.string.home_layout_hidden_metrics_title),
-                                onClick = { onUnhideMetric(id) }
-                            )
-                            if (idx != hiddenMetricList.lastIndex) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(
-                modifier = Modifier.height(
-                    com.box.app.ui.components.systemNavBarBottomPadding().coerceAtMost(12.dp)
-                )
-            )
         }
+
+        // ── 已隐藏（仅在有项时显示） ────────────────────────────────────
+        if (hiddenSectionList.isNotEmpty()) {
+            HomeLayoutSection(title = stringResource(R.string.home_layout_hidden)) { lookahead ->
+                hiddenSectionList.forEachIndexed { idx, id ->
+                    HomeLayoutRestoreBasicRow(
+                        lookaheadScope = lookahead,
+                        rowKey = "hid_$id",
+                        title = stringResource(
+                            homeSectionTitleRes(id) ?: R.string.home_layout_hidden
+                        ),
+                        showDivider = idx != hiddenSectionList.lastIndex,
+                        onClick = { onUnhideSection(id) })
+                }
+            }
+        }
+
+        // ── 指标卡片（grid 显示时才出现） ───────────────────────────────
+        if ("grid" !in hiddenSections) {
+            HomeLayoutSection(title = stringResource(R.string.home_layout_metrics_title)) { lookahead ->
+                visibleMetrics.forEachIndexed { idx, id ->
+                    HomeLayoutBasicRow(
+                        lookaheadScope = lookahead,
+                        rowKey = "vmetric_$id",
+                        title = stringResource(
+                            homeMetricTitleRes(id) ?: R.string.home_layout_metrics_title
+                        ),
+                        canMoveUp = idx > 0,
+                        canMoveDown = idx < visibleMetrics.lastIndex,
+                        showDivider = idx != visibleMetrics.lastIndex,
+                        onMoveUp = { onMoveMetric(id, -1) },
+                        onMoveDown = { onMoveMetric(id, 1) },
+                        onHide = { onHideMetric(id) })
+                }
+            }
+
+            if (hiddenMetricList.isNotEmpty()) {
+                HomeLayoutSection(title = stringResource(R.string.home_layout_hidden_metrics_title)) { lookahead ->
+                    hiddenMetricList.forEachIndexed { idx, id ->
+                        HomeLayoutRestoreBasicRow(
+                            lookaheadScope = lookahead,
+                            rowKey = "hmetric_$id",
+                            title = stringResource(
+                                homeMetricTitleRes(id) ?: R.string.home_layout_hidden_metrics_title
+                            ),
+                            showDivider = idx != hiddenMetricList.lastIndex,
+                            onClick = { onUnhideMetric(id) })
+                    }
+                }
+            }
+        }
+
+        Spacer(
+            modifier = Modifier.height(
+                com.box.app.ui.components.systemNavBarBottomPadding().coerceAtMost(16.dp)
+            )
+        )
     }
 }
 
+/**
+ * miuix 风格段：SmallTitle（卡外，使用 onBackgroundVariant）+ 包裹 Card（onSurface 容器）
+ *
+ * 内容部分以 LookaheadScope 提供给 content 闭包，让子行能用 animateBounds 跟踪位置；
+ * Card 本身使用 animateContentSize 平滑切换高度（行数增减时）
+ */
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-private fun HomeLayoutGroupCard(
-    title: String,
-    content: @Composable () -> Unit
+private fun HomeLayoutSection(
+    title: String, content: @Composable (LookaheadScope) -> Unit
 ) {
+    SmallTitle(
+        text = title, insideMargin = PaddingValues(horizontal = 28.dp, vertical = 8.dp)
+    )
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 18.dp,
-        insideMargin = PaddingValues(16.dp),
-        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surfaceContainer)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+            .padding(bottom = 6.dp)
+            .animateContentSize(
+                animationSpec = spring(
+                    stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f
+                )
+            ), cornerRadius = 18.dp, insideMargin = PaddingValues(0.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = title,
-                style = MiuixTheme.textStyles.title4,
-                fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            content()
+        LookaheadScope {
+            val ls: LookaheadScope = this
+            Column { content(ls) }
         }
     }
 }
 
+/**
+ * 标准行：BasicComponent + 三个尾部操作图标（上移 / 下移 / 隐藏）
+ * 上下移到达边界时禁用对应按钮，给出更准确的可点击提示
+ *
+ * 位置形变：通过 [animateBounds] 在 [lookaheadScope] 中跟踪上下行的 Y 位移并平滑过渡
+ */
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-private fun HomeLayoutRow(
+private fun HomeLayoutBasicRow(
+    lookaheadScope: LookaheadScope,
+    rowKey: String,
     title: String,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    showDivider: Boolean,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onHide: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 16.dp,
-        insideMargin = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surfaceVariant)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = title,
-                style = MiuixTheme.textStyles.body1,
-                color = MiuixTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-            HomeLayoutActionIcon(icon = Icons.Filled.ArrowUpward, onClick = onMoveUp)
-            HomeLayoutActionIcon(icon = Icons.Filled.ArrowDownward, onClick = onMoveDown)
-            HomeLayoutActionIcon(icon = Icons.Filled.VisibilityOff, onClick = onHide)
+    key(rowKey) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateBounds(
+                    lookaheadScope = lookaheadScope, boundsTransform = { _, _ ->
+                        spring(
+                            stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f
+                        )
+                    })) {
+            BasicComponent(
+                title = title, endActions = {
+                    HomeLayoutEndIcon(
+                        icon = Icons.Filled.ArrowUpward, enabled = canMoveUp, onClick = onMoveUp
+                    )
+                    HomeLayoutEndIcon(
+                        icon = Icons.Filled.ArrowDownward,
+                        enabled = canMoveDown,
+                        onClick = onMoveDown
+                    )
+                    HomeLayoutEndIcon(
+                        icon = Icons.Filled.VisibilityOff, onClick = onHide
+                    )
+                })
+            if (showDivider) HomeLayoutDivider()
         }
     }
 }
 
+/**
+ * 已隐藏项的恢复行：整行可点 → 还原显示
+ * 同样在 [lookaheadScope] 中应用 [animateBounds] 处理位置变化
+ */
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-private fun HomeLayoutRestoreRow(
+private fun HomeLayoutRestoreBasicRow(
+    lookaheadScope: LookaheadScope,
+    rowKey: String,
     title: String,
+    showDivider: Boolean,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 16.dp,
-        insideMargin = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surfaceVariant),
-        onClick = onClick
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                style = MiuixTheme.textStyles.body1,
-                color = MiuixTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
+    key(rowKey) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateBounds(
+                    lookaheadScope = lookaheadScope, boundsTransform = { _, _ ->
+                        spring(
+                            stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f
+                        )
+                    })) {
+            BasicComponent(
+                title = title, endActions = {
+                    Icon(
+                        imageVector = Icons.Filled.Visibility,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.onSurfaceSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }, onClick = onClick
             )
-            Icon(
-                imageVector = Icons.Filled.Visibility,
-                contentDescription = null,
-                tint = MiuixTheme.colorScheme.onSurfaceSecondary,
-                modifier = Modifier.size(18.dp)
-            )
+            if (showDivider) HomeLayoutDivider()
         }
     }
 }
 
+/**
+ * 行尾图标按钮：紧凑 32×32，无背景，仅图标 tint 体现可用状态
+ */
 @Composable
-private fun HomeLayoutActionIcon(
+private fun HomeLayoutEndIcon(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
+    val scheme = MiuixTheme.colorScheme
     IconButton(
         onClick = onClick,
-        backgroundColor = MiuixTheme.colorScheme.surfaceContainerHigh,
-        cornerRadius = 14.dp,
-        modifier = Modifier.size(34.dp)
+        backgroundColor = Color.Transparent,
+        cornerRadius = 12.dp,
+        enabled = enabled,
+        modifier = Modifier.size(32.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MiuixTheme.colorScheme.onSurfaceSecondary,
+            tint = if (enabled) scheme.onSurface else scheme.onSurfaceSecondary.copy(alpha = 0.4f),
             modifier = Modifier.size(18.dp)
         )
     }
 }
 
+/** Card 内行间分隔线 */
+@Composable
+private fun HomeLayoutDivider() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .height(0.5.dp)
+            .background(MiuixTheme.colorScheme.dividerLine.copy(alpha = 0.10f))
+    )
+}
+
 @Composable
 private fun IpGeoBottomSheet(
-    loading: Boolean,
-    ipv4: HomeMetricsApi.PublicGeoIpInfo?,
-    ipv6: HomeMetricsApi.PublicGeoIpInfo?
+    loading: Boolean, ipv4: HomeMetricsApi.PublicGeoIpInfo?, ipv6: HomeMetricsApi.PublicGeoIpInfo?
 ) {
     val scrollState = rememberScrollState()
     Column(
@@ -949,14 +995,10 @@ private fun IpGeoBottomSheet(
         }
 
         IpGeoSectionCard(
-            title = stringResource(R.string.home_ip_geo_ipv4_title),
-            loading = loading,
-            info = ipv4
+            title = stringResource(R.string.home_ip_geo_ipv4_title), loading = loading, info = ipv4
         )
         IpGeoSectionCard(
-            title = stringResource(R.string.home_ip_geo_ipv6_title),
-            loading = loading,
-            info = ipv6
+            title = stringResource(R.string.home_ip_geo_ipv6_title), loading = loading, info = ipv6
         )
 
         Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars))
@@ -965,9 +1007,7 @@ private fun IpGeoBottomSheet(
 
 @Composable
 private fun IpGeoSectionCard(
-    title: String,
-    loading: Boolean,
-    info: HomeMetricsApi.PublicGeoIpInfo?
+    title: String, loading: Boolean, info: HomeMetricsApi.PublicGeoIpInfo?
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1007,6 +1047,7 @@ private fun IpGeoSectionCard(
                         )
                     }
                 }
+
                 info == null -> {
                     Text(
                         text = stringResource(R.string.home_ip_geo_unavailable),
@@ -1014,9 +1055,11 @@ private fun IpGeoSectionCard(
                         color = MiuixTheme.colorScheme.onSurfaceSecondary
                     )
                 }
+
                 else -> {
                     val flag = countryCodeToFlagEmoji(info.countryCode)
-                    val locationName = info.country.takeIf { it.isNotBlank() && it != "-" } ?: info.countryCode
+                    val locationName =
+                        info.country.takeIf { it.isNotBlank() && it != "-" } ?: info.countryCode
                     val locationValue = if (flag.isBlank()) locationName else "$locationName $flag"
                     val asnValue = buildString {
                         val asnRaw = info.asn.trim()
@@ -1031,10 +1074,24 @@ private fun IpGeoSectionCard(
                         }
                         if (isBlank()) append("-")
                     }
-                    IpGeoInfoRow(Icons.Filled.Language, stringResource(R.string.home_ip_geo_field_ip), info.ip)
-                    IpGeoInfoRow(Icons.Filled.LocationOn, stringResource(R.string.home_ip_geo_field_location), locationValue)
-                    IpGeoInfoRow(Icons.Filled.Business, stringResource(R.string.home_ip_geo_field_isp), info.isp)
-                    IpGeoInfoRow(Icons.Filled.Hub, stringResource(R.string.home_ip_geo_field_asn), asnValue)
+                    IpGeoInfoRow(
+                        Icons.Filled.Language,
+                        stringResource(R.string.home_ip_geo_field_ip),
+                        info.ip
+                    )
+                    IpGeoInfoRow(
+                        Icons.Filled.LocationOn,
+                        stringResource(R.string.home_ip_geo_field_location),
+                        locationValue
+                    )
+                    IpGeoInfoRow(
+                        Icons.Filled.Business,
+                        stringResource(R.string.home_ip_geo_field_isp),
+                        info.isp
+                    )
+                    IpGeoInfoRow(
+                        Icons.Filled.Hub, stringResource(R.string.home_ip_geo_field_asn), asnValue
+                    )
                 }
             }
         }
@@ -1043,9 +1100,7 @@ private fun IpGeoSectionCard(
 
 @Composable
 private fun IpGeoInfoRow(
-    icon: ImageVector,
-    label: String,
-    value: String
+    icon: ImageVector, label: String, value: String
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),

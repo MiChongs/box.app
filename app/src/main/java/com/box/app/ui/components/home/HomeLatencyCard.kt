@@ -2,6 +2,11 @@ package com.box.app.ui.components.home
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -21,15 +26,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.box.app.R
 import com.box.app.ui.theme.AppFonts
@@ -71,6 +83,7 @@ fun HomeLatencyCard(
     google: String,
     loading: Boolean,
     onRefresh: () -> Unit,
+    onOpenTargets: () -> Unit = {},
     modifier: Modifier = Modifier,
     compact: Boolean = false
 ) {
@@ -112,6 +125,20 @@ fun HomeLatencyCard(
                     .clip(Capsule())
                     .background(animatedStatusColor)
             )
+            // 配置延迟目标入口（迁自设置 → 延迟目标）
+            IconButton(
+                onClick = onOpenTargets,
+                modifier = Modifier.size(28.dp),
+                backgroundColor = Color.Transparent,
+                cornerRadius = 8.dp
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Tune,
+                    contentDescription = stringResource(R.string.settings_latency_targets_title),
+                    tint = MiuixTheme.colorScheme.onSurfaceSecondary,
+                    modifier = Modifier.size(15.dp)
+                )
+            }
             // 刷新按钮
             IconButton(
                 onClick = onRefresh,
@@ -232,10 +259,20 @@ private fun LatencyChip(
     }
 }
 
+/** 从延迟字符串里拆出领先的数字部分（"123 ms" → 123），无法解析返回 null */
+private fun parseLatencyNumber(text: String): Int? =
+    Regex("""([0-9]+)""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()
+
 /**
- * 延迟数值的「翻牌式」动画：
- * 每个字符独立动画，数字上升从下方滑入，下降从上方滑入，
- * 非数字字符（如 " ", "m", "s"）使用淡入淡出过渡。
+ * 延迟数值动画 — 增强版「翻牌 + 弹簧 + 脉冲」组合：
+ *
+ * 1. **整体方向**：用前后两次完整数值（而非单字符）推断升/降，所有位数同向滚动，
+ *    解决了 199→200 时各位方向冲突造成的"乱跳"
+ * 2. **弹簧物理**：滑动用 `spring`（中等刚度 + 阻尼 0.78）替代线性 tween，更有"卷轴"质感
+ * 3. **级联**：每位 28ms × index 的 fadeIn 延迟，呈现轻微"波浪"刷新感
+ * 4. **宽度形变**：`Modifier.animateContentSize` 平滑过渡字符数变化（如 99→100）
+ * 5. **到达脉冲**：值更新后整个数字组缩放 0.94→1.0 弹回，强化"读取到新数据"的反馈
+ * 6. **空闲免动**：相同字符不触发 transition；测试态 / 失败态等非数字串走 fadeIn/fadeOut
  */
 @Composable
 private fun RollingLatencyText(
@@ -243,7 +280,44 @@ private fun RollingLatencyText(
     style: androidx.compose.ui.text.TextStyle,
     color: Color
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    // 跟踪上一次完整文本，用于推断「整体升/降」
+    var prevText by remember { mutableStateOf(text) }
+    val direction: Int = remember(text, prevText) {
+        val curr = parseLatencyNumber(text)
+        val prev = parseLatencyNumber(prevText)
+        when {
+            curr == null || prev == null -> 0     // 无法判定 → 中性（默认升）
+            curr > prev -> +1                       // 数值上升
+            curr < prev -> -1                       // 数值下降
+            else -> 0
+        }
+    }
+    LaunchedEffect(text) { prevText = text }
+
+    // 到达后的轻微脉冲（缩放）
+    val pulse = remember { Animatable(1f) }
+    LaunchedEffect(text) {
+        pulse.snapTo(0.94f)
+        pulse.animateTo(
+            targetValue = 1f,
+            animationSpec = spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium)
+        )
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .graphicsLayer {
+                scaleX = pulse.value
+                scaleY = pulse.value
+            }
+            .animateContentSize(
+                animationSpec = spring(
+                    stiffness = Spring.StiffnessMediumLow,
+                    dampingRatio = 0.85f
+                )
+            )
+    ) {
         text.forEachIndexed { index, char ->
             AnimatedContent(
                 targetState = char,
@@ -252,16 +326,36 @@ private fun RollingLatencyText(
                     val curr = targetState
                     val bothDigits = prev.isDigit() && curr.isDigit()
                     if (bothDigits) {
-                        val goingUp = curr.digitToInt() > prev.digitToInt()
-                        if (goingUp) {
-                            (slideInVertically(tween(320)) { it } + fadeIn(tween(220)))
-                                .togetherWith(slideOutVertically(tween(320)) { -it } + fadeOut(tween(220)))
-                        } else {
-                            (slideInVertically(tween(320)) { -it } + fadeIn(tween(220)))
-                                .togetherWith(slideOutVertically(tween(320)) { it } + fadeOut(tween(220)))
+                        // 整体方向；若不可判定则退回单位数字比较
+                        val up = when {
+                            direction > 0 -> true
+                            direction < 0 -> false
+                            else -> curr.digitToInt() >= prev.digitToInt()
                         }
+                        // 上升：新数字从下方滑入；下降：从上方滑入
+                        val enterFrom: Int = if (up) +1 else -1
+                        val exitTo: Int = if (up) -1 else +1
+                        val slideSpec = spring<IntOffset>(
+                            stiffness = Spring.StiffnessMediumLow,
+                            dampingRatio = 0.78f
+                        )
+                        // 级联：每位错开少量时间，多位数字呈"波浪"感
+                        val stagger = (index * 28).coerceAtMost(140)
+                        val fadeInSpec = tween<Float>(
+                            durationMillis = 220,
+                            delayMillis = stagger,
+                            easing = FastOutSlowInEasing
+                        )
+                        val fadeOutSpec = tween<Float>(
+                            durationMillis = 200,
+                            easing = FastOutSlowInEasing
+                        )
+                        (slideInVertically(slideSpec) { it * enterFrom } + fadeIn(fadeInSpec))
+                            .togetherWith(
+                                slideOutVertically(slideSpec) { it * exitTo } + fadeOut(fadeOutSpec)
+                            )
                     } else {
-                        fadeIn(tween(200)).togetherWith(fadeOut(tween(200)))
+                        fadeIn(tween(180)).togetherWith(fadeOut(tween(180)))
                     }
                 },
                 label = "rolling_digit_$index"
