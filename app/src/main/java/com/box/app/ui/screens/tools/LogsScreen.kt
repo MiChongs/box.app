@@ -51,7 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.shapes.SmoothRoundedCornerShape
 import com.box.app.R
-import com.box.app.data.backend.ShellExecutor
+import com.box.app.data.backend.LogsRootShell
 import com.box.app.ui.components.ErrorToast
 import com.box.app.ui.components.contentPaddingWithNavBars
 import com.box.app.ui.components.home.HomeSemanticColors
@@ -204,7 +204,8 @@ fun ToolsLogsScreen(
      */
     suspend fun queryLogFiles(): List<String>? {
         val cmd = "for f in $runDir/*; do [ -f \"\$f\" ] || continue; b=\$(basename \"\$f\"); case \"\$b\" in *.log|*.LOG) echo \"\$b\";; esac; done"
-        val result = ShellExecutor.execute(cmd)
+        // 日志读走独立 shell：与全局 cached shell 完全隔离，避免被服务/配置写命令串行阻塞
+        val result = LogsRootShell.execute(cmd)
         // shell 失败（进程被 root 管理器 kill、超时、模块重启瞬间的 IPC 问题等）→ null，保留旧列表
         if (result.exitCode != 0) return null
         return result.stdout
@@ -223,7 +224,7 @@ fun ToolsLogsScreen(
         val safeName = fileName.replace("\"", "").replace("'", "")
         val path = "$runDir/$safeName"
         val cmd = "tail -n 600 '$path' 2>/dev/null || true"
-        val result = ShellExecutor.execute(cmd)
+        val result = LogsRootShell.execute(cmd)
         // 模块重启瞬间 shell 可能 timeout / IPC 失败 → null，调用方保留旧内容
         if (result.exitCode != 0) return null
         return result.stdout
@@ -233,7 +234,7 @@ fun ToolsLogsScreen(
         if (fileName.isBlank()) return
         val safeName = fileName.replace("\"", "").replace("'", "")
         val path = "$runDir/$safeName"
-        ShellExecutor.execute("rm -f '$path' 2>/dev/null || true")
+        LogsRootShell.execute("rm -f '$path' 2>/dev/null || true")
     }
 
     suspend fun refreshLogs(

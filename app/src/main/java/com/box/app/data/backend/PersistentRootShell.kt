@@ -3,163 +3,100 @@ package com.box.app.data.backend
 import com.topjohnwu.superuser.Shell
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Root shell 池（基于 libsu）
+ * 单实例 Root Shell 封装（带主动探活 + 短超时 + 失败重建）
  *
- * 背景：libsu 的每个 [Shell] 实例内部对 Job 执行加互斥锁，Shell.cmd()/Shell.getShell()
- * 返回全局单例，因此所有 root 命令（tail 日志、读配置、执行 box.service 控制等）
- * 会在同一个 shell 上排队。当某条命令耗时较长（模块重启、大日志 cat、外部管理器
- * IPC 抖动…），整个 App 都会被阻塞，UI 也会因此出现状态卡住。
+ * 设计思路：
+ *   - 复用 libsu 的全局 cached shell（[Shell.cmd] / [Shell.getShell]）：root 授权、
+ *     生命周期、IPC 都由 libsu 内部统一管理，**保证唯一会话**（cwd / env / 已加载脚本一致）
+ *   - 之前两版极端方案的取舍如下：
+ *       (A) 多 shell 池：每个 shell 独立 su 子进程 → 会话丢失（用户已反馈）
+ *       (B) 单 shell + 12s 超时：模块重启时旧 cached 引用陈旧，新命令必须等满 12s
+ *           才发现 shell 已死，UI 长时间"加载中"（用户已反馈）
  *
- * 实现要点：
- * 1. **动态扩容**：按需创建 shell（`Shell.Builder.create().build()` 各开一个独立 su 子进程）
- *    直到达到 [POOL_SIZE]；超过容量的请求在 [idle] Channel 上排队等待释放
- * 2. **健康反馈**：任务成功 → 归还复用；超时/异常/取消 → 关闭后由下次 acquire 重建
- * 3. **世代失效**：[close] 递增 [generation]，所有"在飞"的 shell 归还时会因世代不匹配
- *    被直接丢弃，确保下次 acquire 拿到新授权下创建的全新 shell
- * 4. **非阻塞释放**：归还逻辑跑在 [NonCancellable] 下，上游协程取消不会泄漏 shell
+ *   - 本版采用「单 shell + 入口探活 + 短超时 + 失败即重建」：
+ *       1. 入口快速 [Shell.isAlive] 检查 — 死则 close，下一次 [Shell.cmd] 由 libsu
+ *          自动重建（< 1s），不再等满超时
+ *       2. 命令级超时缩短到 4s — 模块重启 IPC 中断的物理上限 ~1-2s，4s 给足容错
+ *       3. timeout / 任何异常都触发 close — 避免陈旧 cached 引用拖累后续命令
+ *       4. [generation] 计数器：每次 close 自增；上层（如日志页）切换文件时若需要丢弃
+ *          in-flight 旧命令的结果，可通过 [currentGeneration] 比对决定是否更新 UI
  *
- * 公开 API 与旧版保持兼容（`execute` / `warmUp` / `close`）。
+ *   - 任何写操作仍走全局 cached shell — 与启动 / 配置 / 服务控制共享同一会话与权限上下文
  */
 internal object PersistentRootShell {
 
-    private const val COMMAND_TIMEOUT_MS = 12_000L
-    private const val POOL_SIZE = 3
-    // 与 AppApplication 中 Shell.setDefaultBuilder 保持一致的 shell 配置
-    private const val SHELL_TIMEOUT_S = 12L
+    /**
+     * 命令级超时。模块重启等 IPC 中断的物理上限约 1-2 秒，4 秒已经留足容错；
+     * 任何超时立即 close，下次 [Shell.cmd] 让 libsu 自动重建（典型 < 1s）。
+     */
+    private const val COMMAND_TIMEOUT_MS = 4_000L
 
-    private val idle = Channel<PooledShell>(POOL_SIZE)
-    private val active = AtomicInteger(0)
-    private val generation = AtomicInteger(0)
+    private val generationCounter = AtomicLong(0)
 
-    private class PooledShell(val shell: Shell, val gen: Int)
+    /** 当前 shell 代际号；每次 [close] 自增，用于上层丢弃 in-flight 过期结果。 */
+    val currentGeneration: Long
+        get() = generationCounter.get()
 
     /**
-     * 构建新的独立 root shell 实例。
-     * libsu 6.0 无 `Shell.newInstance()` 静态方法，通过 Builder 显式创建；
-     * 参数与 [com.box.app.AppApplication.onCreate] 的 setDefaultBuilder 保持一致。
+     * 预热全局 cached shell。重复调用幂等，每次都触发 [Shell.getShell] 获取
+     * 已 cache 的实例（首次会执行 root 授权与初始化）。
      */
-    private fun buildNewShell(): Shell = Shell.Builder.create()
-        .setFlags(Shell.FLAG_MOUNT_MASTER)
-        .setTimeout(SHELL_TIMEOUT_S)
-        .build()
-
-    /**
-     * 预热 shell 池。重复调用幂等，只会向 [target] 扩容不会缩容。
-     * App 启动时调用一次即可避免首次命令因冷启动 su 进程而额外等待。
-     */
-    suspend fun warmUp(minSessions: Int = POOL_SIZE) = withContext(Dispatchers.IO) {
-        val target = minSessions.coerceIn(1, POOL_SIZE)
-        while (active.get() < target) {
-            val gen = generation.get()
-            val shell = runCatching { buildNewShell() }.getOrNull() ?: break
-            // CAS 扩容计数；若并发其它线程已达目标，回滚
-            val updated = active.incrementAndGet()
-            if (updated > target) {
-                active.decrementAndGet()
-                runCatching { shell.waitAndClose() }
-                break
-            }
-            idle.trySend(PooledShell(shell, gen))
+    suspend fun warmUp(minSessions: Int = 1) = withContext(Dispatchers.IO) {
+        repeat(minSessions.coerceAtLeast(1)) {
+            Shell.getShell()
         }
     }
 
     /**
-     * 执行 root 命令
-     * 返回值中 exitCode = -1 表示 shell 超时 / 异常 / 取消。
+     * 执行 root 命令（在全局 cached shell 上排队）。
+     *
+     * 入口先做 [Shell.isAlive] 探活，死则 close 让 libsu 自动重建 — 这是模块重启
+     * 场景下 UI 不卡顿的关键：避免新命令陪着陈旧的 cached shell 等满整个 timeout。
      */
     suspend fun execute(command: String): ShellExecutor.Result = withContext(Dispatchers.IO) {
-        val pooled = acquire()
+        // ── 快速探活：cached shell 死 → 提前 close，下次 Shell.cmd 触发 libsu 重建 ──
+        Shell.getCachedShell()?.takeUnless { it.isAlive }?.let { close() }
+
         val stdout = mutableListOf<String>()
         val stderr = mutableListOf<String>()
-        var healthy = true
-        var cancelled: CancellationException? = null
 
-        val result: ShellExecutor.Result = try {
-            val r = withTimeout(COMMAND_TIMEOUT_MS) {
-                pooled.shell.newJob().add(command).to(stdout, stderr).exec()
+        try {
+            val result = withTimeout(COMMAND_TIMEOUT_MS) {
+                Shell.cmd(command).to(stdout, stderr).exec()
             }
             ShellExecutor.Result(
                 stdout = stdout.joinToString("\n"),
                 stderr = stderr.joinToString("\n"),
-                exitCode = r.code
+                exitCode = result.code
             )
-        } catch (e: TimeoutCancellationException) {
-            healthy = false
-            ShellExecutor.Result("", "shell timeout", -1)
         } catch (e: CancellationException) {
-            healthy = false
-            cancelled = e
-            ShellExecutor.Result("", "cancelled", -1)
+            throw e
+        } catch (e: TimeoutCancellationException) {
+            // 超时 → 大概率 shell 卡住或死了：close 让下次重建，避免后续命令同样卡死
+            close()
+            ShellExecutor.Result("", "shell timeout", -1)
         } catch (e: Exception) {
-            healthy = false
+            // 任意异常都 close，防止陈旧 cached 引用反复触发同样错误
+            close()
             ShellExecutor.Result("", e.message ?: "shell error", -1)
         }
-
-        withContext(NonCancellable) { release(pooled, healthy) }
-        cancelled?.let { throw it }
-        result
     }
 
     /**
-     * 关闭所有已知 shell；"在飞" shell 归还时会因世代失效被丢弃。
-     * 典型场景：`EnvironmentChecker.requestRootAccess` 请求新授权前调用，
-     * 保证下一次 `execute` 打开全新子进程，使新的 root 授权立刻生效。
+     * 关闭全局 cached shell。代际号自增，让上层可以判断 in-flight 命令的结果是否过期。
+     * 典型用法：[EnvironmentChecker.requestRootAccess] 在请求新授权前调用，
+     * 强制下一次 [execute] 让 libsu 重新打开 shell，让新授权立即生效。
      */
-    suspend fun close() = withContext(Dispatchers.IO + NonCancellable) {
-        generation.incrementAndGet() // 失效所有 in-flight shell
-        while (true) {
-            val p = idle.tryReceive().getOrNull() ?: break
-            runCatching { p.shell.waitAndClose() }
-            active.decrementAndGet()
+    fun close() {
+        generationCounter.incrementAndGet()
+        runCatching {
+            Shell.getCachedShell()?.waitAndClose()
         }
-        // 兼容直接使用 Shell.cmd() 的外部代码：关闭 libsu 全局缓存 shell
-        runCatching { Shell.getCachedShell()?.waitAndClose() }
-    }
-
-    // ── 内部：shell 获取 / 归还 ────────────────────────────────────────────
-
-    private suspend fun acquire(): PooledShell {
-        // 1) 快速路径：直接从空闲队列取
-        idle.tryReceive().getOrNull()?.let { return it }
-
-        // 2) 容量未满：创建新 shell（CAS 保证并发安全）
-        while (true) {
-            val curr = active.get()
-            if (curr >= POOL_SIZE) break
-            if (active.compareAndSet(curr, curr + 1)) {
-                val gen = generation.get()
-                val shell = runCatching { buildNewShell() }.getOrNull()
-                if (shell != null) return PooledShell(shell, gen)
-                // 创建失败（root 被撤 / 系统 IO 异常）回滚，尝试走等待路径
-                active.decrementAndGet()
-                break
-            }
-        }
-
-        // 3) 池已满：挂起等待某个 shell 归还
-        return idle.receive()
-    }
-
-    /**
-     * 归还 shell。
-     * @param healthy false = 任务失败/取消/超时 或 shell 已被 [close] 失效
-     *                → 关闭并不再入池；下次 [acquire] 走容量路径重建
-     */
-    private fun release(pooled: PooledShell, healthy: Boolean) {
-        val validGen = pooled.gen == generation.get()
-        if (healthy && validGen) {
-            idle.trySend(pooled) // buffered capacity=POOL_SIZE，trySend 必然成功
-            return
-        }
-        runCatching { pooled.shell.waitAndClose() }
-        active.decrementAndGet()
     }
 }
