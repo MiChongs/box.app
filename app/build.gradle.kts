@@ -23,35 +23,81 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
-fun getApkTimestamp(): String {
-    return SimpleDateFormat("yyyyMMdd-HHmm").format(Date())
-}
+// ───── git-derived versioning ─────
+//
+// 设计目标：
+//   1. versionName 以最近的 v* tag 为锚（如 v1.0.0 → 1.0.0）；
+//      偏离 tag 时附 ahead 数 + short hash（1.0.0-3-abc1234）。
+//   2. versionCode 由 SemVer 主次补 + ahead 编码，保证全局单调：
+//      major*1_000_000 + minor*10_000 + patch*100 + min(ahead, 99)。
+//      patch 内最多 99 个 dev 构建上限即满；范围远小于 Android 上限 2.1e9。
+//   3. 不在 git 仓库 / 无 tag 时退化到 epoch-based timestamp，构建仍可进行。
+//
+// 触发新版本：打 v<major>.<minor>.<patch> tag → push → release workflow 自动构建。
+// 同一 tag 上重复构建：versionCode 与 versionName 完全一致（可重复构建友好）。
 
-private fun String.execute(): String {
-    return try {
-        val process = ProcessBuilder(this.split(" ")).start()
-        process.waitFor(1, TimeUnit.SECONDS)
-        process.inputStream.bufferedReader().readText().trim()
-    } catch (e: Exception) {
-        ""
+private fun String.exec(): String = try {
+    val proc = ProcessBuilder(*this.split(" ").toTypedArray())
+        .redirectErrorStream(true)
+        .start()
+    proc.waitFor(2, TimeUnit.SECONDS)
+    proc.inputStream.bufferedReader().readText().trim()
+} catch (_: Exception) { "" }
+
+private data class GitVersionInfo(
+    val baseVersion: String,    // "1.2.3"（无 v 前缀，无 pre-release 后缀）
+    val preRelease: String,     // "-rc.1" / "-beta" / ""
+    val ahead: Int,             // tag → HEAD 的 commit 数；无 tag 时是 HEAD 总 commit 数
+    val shortHash: String,
+    val hasTag: Boolean,
+)
+
+private fun gitVersionInfo(): GitVersionInfo? {
+    if ("git rev-parse --is-inside-work-tree".exec() != "true") return null
+
+    val rawTag = "git describe --tags --abbrev=0 --match v*".exec()
+    val hasTag = rawTag.isNotBlank()
+
+    val tagBody = if (hasTag) rawTag.removePrefix("v") else "0.0.0"
+    val dashIdx = tagBody.indexOf('-')
+    val baseVersion = if (dashIdx >= 0) tagBody.substring(0, dashIdx) else tagBody
+    val preRelease = if (dashIdx >= 0) tagBody.substring(dashIdx) else ""
+
+    val ahead = if (hasTag) {
+        "git rev-list --count $rawTag..HEAD".exec().toIntOrNull() ?: 0
+    } else {
+        "git rev-list --count HEAD".exec().toIntOrNull() ?: 0
     }
+    val shortHash = "git rev-parse --short HEAD".exec()
+
+    return GitVersionInfo(baseVersion, preRelease, ahead, shortHash, hasTag)
 }
 
 fun getVersionCode(): Int {
-    val gitCommitCount = "git rev-list --count HEAD".execute()
-    if (gitCommitCount.isNotEmpty()) {
-        return gitCommitCount.toInt()
+    val info = gitVersionInfo()
+    if (info != null) {
+        val parts = info.baseVersion.split(".")
+        val major = parts.getOrNull(0)?.toIntOrNull() ?: 0
+        val minor = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        val patch = parts.getOrNull(2)?.toIntOrNull() ?: 0
+        val ahead = info.ahead.coerceAtMost(99)
+        val code = major * 1_000_000 + minor * 10_000 + patch * 100 + ahead
+        if (code > 0) return code
     }
-    val epochStart = 1640995200000 // 2022-01-01 00:00:00
-    return ((System.currentTimeMillis() - epochStart) / 60000).toInt()
+    // fallback：自 2022-01-01 起的分钟数
+    return ((System.currentTimeMillis() - 1_640_995_200_000L) / 60_000L).toInt()
 }
 
 fun getVersionName(): String {
-    val gitShortHash = "git rev-parse --short HEAD".execute()
-    if (gitShortHash.isNotEmpty()) {
-        return gitShortHash
+    val info = gitVersionInfo()
+        ?: return SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
+
+    val tag = "${info.baseVersion}${info.preRelease}"
+    return when {
+        info.hasTag && info.ahead == 0 -> tag
+        info.shortHash.isNotBlank() -> "$tag-${info.ahead}-${info.shortHash}"
+        else -> "$tag-${info.ahead}"
     }
-    return SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
 }
 
 android {
@@ -132,8 +178,10 @@ android {
 
 }
 
+// 主 APK 名：BoxReApp-{versionName}-{flavor}-{buildType}.apk
+// flavor / buildType 后缀由 Android Plugin 自动追加。
 base {
-    archivesName.set("app-${getApkTimestamp()}")
+    archivesName.set("BoxReApp-${getVersionName()}")
 }
 
 kotlin {
@@ -199,12 +247,14 @@ val prepareAboutLibrariesRes = tasks.register<PrepareAboutLibrariesResTask>("pre
 
 androidComponents {
     onVariants(selector().all()) { variant ->
-        val ts = getApkTimestamp()
+        val versionName = getVersionName()
         val prefix = when {
             variant.productFlavors.any { it.second == "bfr" } -> "bfr"
             variant.productFlavors.any { it.second == "box" } -> "box"
             else -> "app"
         }
+        // debug 构建在副本名上区分一下，避免与 release 同名相互覆盖。
+        val buildTypeSuffix = if (variant.buildType == "debug") "-debug" else ""
 
         val variantName = variant.name
         val variantNameCap = variantName.replaceFirstChar { c ->
@@ -214,13 +264,15 @@ androidComponents {
         val copyTaskName = "copy${variantNameCap}Apk"
         val assembleTaskName = "assemble${variantNameCap}"
 
+        // 提供一份"flat"命名的 APK 副本到 outputs/apkRenamed/{variant}/，
+        // 便于本地分发：BoxReApp-{prefix}-{versionName}{-debug}.apk
         val copyTaskProvider = tasks.register<Copy>(copyTaskName) {
             val srcDir = layout.buildDirectory.dir("outputs/apk/$variantName")
             from(srcDir) {
                 include("*.apk")
             }
             into(layout.buildDirectory.dir("outputs/apkRenamed/$variantName"))
-            rename { _ -> "${prefix}-${ts}.apk" }
+            rename { _ -> "BoxReApp-${prefix}-${versionName}${buildTypeSuffix}.apk" }
         }
 
         afterEvaluate {
