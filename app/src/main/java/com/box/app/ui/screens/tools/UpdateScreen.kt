@@ -29,19 +29,19 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.box.app.R
 import com.box.app.data.backend.BoxApi
 import com.box.app.ui.components.ErrorToast
 import com.box.app.ui.components.LocalFloatingNavBarSpaceDp
+import com.box.app.ui.components.home.HomeSemanticColors
+import com.box.app.ui.components.home.homeInfoColors
+import com.box.app.ui.components.home.homeSuccessColors
 import com.box.app.ui.theme.AppFonts
-import com.box.app.utils.ThemeManager
 import dev.lackluster.hyperx.ui.dialog.EditTextDialog
 import dev.lackluster.hyperx.ui.layout.HyperXPage
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -88,7 +88,6 @@ fun ToolsUpdateCnipScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val scheme = MiuixTheme.colorScheme
-    val isDark = ThemeManager.shouldUseDarkTheme()
 
     // ── 状态 ────────────────────────────────────────────────────────────
     var loading by remember { mutableStateOf(true) }
@@ -213,7 +212,7 @@ fun ToolsUpdateCnipScreen(
             // ═══ 状态提示 ═══════════════════════════════════════════════
             item(key = "hint") {
                 Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-                    CnipStatusHint(scheme = scheme, isDark = isDark)
+                    CnipStatusHint(scheme = scheme)
                 }
             }
 
@@ -274,8 +273,7 @@ fun ToolsUpdateCnipScreen(
                             writeString("cn_ip_file", it)
                         },
                         enabled = bypassCnIp,
-                        scheme = scheme,
-                        isDark = isDark
+                        scheme = scheme
                     )
                     CnipDivider()
                     CnipPathRow(
@@ -289,8 +287,7 @@ fun ToolsUpdateCnipScreen(
                             writeString("cn_ipv6_file", it)
                         },
                         enabled = bypassCnIp,
-                        scheme = scheme,
-                        isDark = isDark
+                        scheme = scheme
                     )
                 }
             }
@@ -312,8 +309,7 @@ fun ToolsUpdateCnipScreen(
                             writeString("cn_ip_url", it)
                         },
                         enabled = bypassCnIp,
-                        scheme = scheme,
-                        isDark = isDark
+                        scheme = scheme
                     )
                     CnipDivider()
                     CnipPathRow(
@@ -327,8 +323,7 @@ fun ToolsUpdateCnipScreen(
                             writeString("cn_ipv6_url", it)
                         },
                         enabled = bypassCnIp,
-                        scheme = scheme,
-                        isDark = isDark
+                        scheme = scheme
                     )
                 }
             }
@@ -355,30 +350,22 @@ fun ToolsUpdateCnipScreen(
     }
 }
 
-// ─── 协议徽章（IPv4 绿 / IPv6 紫） ──────────────────────────────────────────
+// ─── 协议徽章（语义色 — Monet 启用时跟随主题派生，关闭时退化为绿/蓝） ───────
 
 @Composable
 private fun ProtocolBadge(
     isV6: Boolean,
-    isDark: Boolean
+    colors: HomeSemanticColors
 ) {
-    val (bg, fg) = remember(isV6, isDark) {
-        when {
-            isV6 && isDark -> Color(0xFF6750A4).copy(alpha = 0.25f) to Color(0xFFD0BCFF)
-            isV6 && !isDark -> Color(0xFF7E57C2).copy(alpha = 0.16f) to Color(0xFF5E35B1)
-            !isV6 && isDark -> Color(0xFF2E7D32).copy(alpha = 0.28f) to Color(0xFFA5D6A7)
-            else -> Color(0xFF43A047).copy(alpha = 0.16f) to Color(0xFF2E7D32)
-        }
-    }
     Box(
         modifier = Modifier
             .clip(SmoothRoundedCornerShape(6.dp))
-            .background(bg)
+            .background(colors.container)
             .padding(horizontal = 7.dp, vertical = 2.dp)
     ) {
         Text(
             text = if (isV6) "v6" else "v4",
-            color = fg,
+            color = colors.onContainer,
             fontWeight = FontWeight.SemiBold,
             fontSize = 11.sp,
             fontFamily = AppFonts.dataFamily
@@ -386,21 +373,19 @@ private fun ProtocolBadge(
     }
 }
 
-// ─── 状态 Hint 卡片（替代蓝色 Hint，更柔和） ────────────────────────────────
+// ─── 状态 Hint 卡片（语义 info 色，自动跟随 Monet） ─────────────────────────
 
 @Composable
 private fun CnipStatusHint(
-    scheme: top.yukonga.miuix.kmp.theme.Colors,
-    isDark: Boolean
+    scheme: top.yukonga.miuix.kmp.theme.Colors
 ) {
-    val accent = if (isDark) Color(0xFF82B1FF) else Color(0xFF1565C0)
-    val bg = if (isDark) accent.copy(alpha = 0.15f) else accent.copy(alpha = 0.08f)
+    val info = homeInfoColors()
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(SmoothRoundedCornerShape(16.dp))
-            .background(bg)
+            .background(info.container)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -408,7 +393,7 @@ private fun CnipStatusHint(
         Icon(
             imageVector = Icons.Rounded.Info,
             contentDescription = null,
-            tint = accent,
+            tint = info.accent,
             modifier = Modifier.size(20.dp)
         )
         Text(
@@ -451,14 +436,15 @@ private fun CnipPathRow(
     dialogHint: String,
     onValueChange: (String) -> Unit,
     enabled: Boolean,
-    scheme: top.yukonga.miuix.kmp.theme.Colors,
-    isDark: Boolean
+    scheme: top.yukonga.miuix.kmp.theme.Colors
 ) {
     var showDialog by remember { mutableStateOf(false) }
     val icon = when (kind) {
         CnipRowKind.File -> Icons.AutoMirrored.Outlined.InsertDriveFile
         CnipRowKind.Url -> Icons.Outlined.Link
     }
+    // IPv4 / IPv6 各取不同语义色：v4 → success (Monet primary), v6 → info (Monet primary lerp blue)
+    val protocolColors = if (isV6) homeInfoColors() else homeSuccessColors()
 
     BasicComponent(
         title = title,
@@ -471,7 +457,7 @@ private fun CnipPathRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                ProtocolBadge(isV6 = isV6, isDark = isDark)
+                ProtocolBadge(isV6 = isV6, colors = protocolColors)
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
