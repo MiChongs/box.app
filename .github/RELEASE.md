@@ -17,7 +17,7 @@
 | `KEYSTORE_PASSWORD` | keystore 文件密码 | 创建 keystore 时设置的 storePassword |
 | `KEY_ALIAS` | 签名密钥别名 | 创建 keystore 时设置的 alias |
 | `KEY_PASSWORD` | 密钥密码 | 创建 keystore 时设置的 keyPassword |
-| `HYPERCEILER_TOKEN` | 拉 fan.miuix 用的 GitHub PAT | github.com/settings/tokens 生成，授予 `read:packages` |
+| `HYPERCEILER_TOKEN` | 双重用途：(a) checkout 私有 submodule `libs/hyperx-compose`；(b) 拉 fan.miuix maven。需要 `repo`(read) + `read:packages`。建议用 fine-grained PAT（按上述 scope 限定到 `MiChongs/hyperx-compose` + Packages 即可） |
 
 ## 可选 Secrets
 

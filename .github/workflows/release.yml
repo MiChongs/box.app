@@ -35,6 +35,10 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+          # HYPERCEILER_TOKEN 同时用于 (a) checkout 私有 submodule libs/hyperx-compose
+          # 与 (b) ReChronoRain/HyperCeiler maven 拉 fan.miuix。
+          # 若要分离，新增 secret SUBMODULE_TOKEN 并改用 ${{ secrets.SUBMODULE_TOKEN }}。
+          token: ${{ secrets.HYPERCEILER_TOKEN }}
 
       - name: Resolve release tag
         id: tag
