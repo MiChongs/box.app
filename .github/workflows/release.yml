@@ -1,0 +1,200 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '本次 release 的 tag (例如 v1.0.0)，留空则使用当前 HEAD 的最近 tag'
+        required: false
+        type: string
+      prerelease:
+        description: '是否标记为 pre-release'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build & Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          elif [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          fi
+          if [ -z "$TAG" ]; then
+            echo "未找到可用 tag，终止" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "解析到 tag: $TAG"
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      - name: Decode keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "错误：未配置 secrets.KEYSTORE_BASE64" >&2
+            echo "提示：执行 base64 -w 0 your-release.keystore 取值后写到仓库 Settings → Secrets" >&2
+            exit 1
+          fi
+          mkdir -p app
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > app/release.keystore
+          echo "keystore size: $(stat -c%s app/release.keystore) bytes"
+
+      - name: Write keystore.properties
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        shell: bash
+        run: |
+          for v in KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!v}" ]; then
+              echo "错误：未配置 secrets.$v" >&2
+              exit 1
+            fi
+          done
+          cat > app/keystore.properties <<EOF
+          storePassword=${KEYSTORE_PASSWORD}
+          keyPassword=${KEY_PASSWORD}
+          keyAlias=${KEY_ALIAS}
+          storeFile=release.keystore
+          EOF
+
+      - name: Inject Gradle properties
+        env:
+          HYPERCEILER_TOKEN: ${{ secrets.HYPERCEILER_TOKEN }}
+          JITPACK_AUTH_TOKEN: ${{ secrets.JITPACK_AUTH_TOKEN }}
+        shell: bash
+        run: |
+          mkdir -p ~/.gradle
+          {
+            echo "org.gradle.jvmargs=-Xmx4g -XX:+UseParallelGC -Dfile.encoding=UTF-8"
+            echo "org.gradle.parallel=true"
+            echo "org.gradle.caching=true"
+            if [ -n "$HYPERCEILER_TOKEN" ]; then
+              echo "hyperceilerToken=$HYPERCEILER_TOKEN"
+            fi
+            if [ -n "$JITPACK_AUTH_TOKEN" ]; then
+              echo "authToken=$JITPACK_AUTH_TOKEN"
+            fi
+          } > ~/.gradle/gradle.properties
+
+      - name: Build release APKs (box + bfr)
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleBoxRelease :app:assembleBfrRelease --stacktrace --no-daemon
+
+      - name: Collect APK artifacts
+        id: collect
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          BOX_APK=$(ls -1 app/build/outputs/apk/box/release/*.apk 2>/dev/null | head -n 1 || true)
+          BFR_APK=$(ls -1 app/build/outputs/apk/bfr/release/*.apk 2>/dev/null | head -n 1 || true)
+          if [ -z "$BOX_APK" ] || [ -z "$BFR_APK" ]; then
+            echo "错误：未找到 release APK 产物" >&2
+            ls -R app/build/outputs/apk || true
+            exit 1
+          fi
+          cp "$BOX_APK" artifacts/
+          cp "$BFR_APK" artifacts/
+          echo "box_apk=$(basename "$BOX_APK")" >> "$GITHUB_OUTPUT"
+          echo "bfr_apk=$(basename "$BFR_APK")" >> "$GITHUB_OUTPUT"
+          (cd artifacts && sha256sum *.apk > SHA256SUMS.txt)
+          ls -la artifacts/
+
+      - name: Generate changelog
+        id: changelog
+        shell: bash
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          PREV_TAG=$(git tag --sort=-creatordate | grep -A1 "^${TAG}$" | tail -n 1 || true)
+          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$TAG" ]; then
+            PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+          fi
+          {
+            echo "changelog<<__CHANGELOG_EOF__"
+            if [ -n "$PREV_TAG" ]; then
+              echo "## 变更（${PREV_TAG} → ${TAG}）"
+              echo
+              git log --pretty=format:"- %s (%h)" --no-merges "${PREV_TAG}..${TAG}"
+            else
+              echo "## 首次 release"
+              echo
+              git log --pretty=format:"- %s (%h)" --no-merges -n 30 "${TAG}"
+            fi
+            echo
+            echo
+            echo "## 产物"
+            echo
+            echo "- \`${{ steps.collect.outputs.box_apk }}\` — Box 风味（CHIZI-0618/box 模块）"
+            echo "- \`${{ steps.collect.outputs.bfr_apk }}\` — BFR 风味（box_for_magisk 模块）"
+            echo "- \`SHA256SUMS.txt\` — 产物校验"
+            echo "__CHANGELOG_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apks-${{ steps.tag.outputs.tag }}
+          path: artifacts/*
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Box ReApp ${{ steps.tag.outputs.tag }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          prerelease: ${{ inputs.prerelease == true || contains(steps.tag.outputs.tag, '-rc') || contains(steps.tag.outputs.tag, '-beta') || contains(steps.tag.outputs.tag, '-alpha') }}
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/*.apk
+            artifacts/SHA256SUMS.txt
+
+      - name: Cleanup secrets on disk
+        if: always()
+        shell: bash
+        run: |
+          rm -f app/keystore.properties app/release.keystore
+          rm -f ~/.gradle/gradle.properties
