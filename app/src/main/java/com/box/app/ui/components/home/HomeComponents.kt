@@ -84,8 +84,6 @@ import com.kyant.shapes.RoundedRectangle
 import top.yukonga.miuix.kmp.shapes.SmoothRoundedCornerShape
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.unit.Dp
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
@@ -894,7 +892,9 @@ fun HomeHeroCard(
             }
         }
 
-        // ── 操作按钮（卡片外部） ──
+        // ── 操作区：统一 segmented control（B4） ──
+        // 仅按"运行中 / 停止"做布局类型切换，内部 loading/enabled 数据变化由
+        // segmented control 内的 animateColorAsState 平滑过渡，不重新触发 size 形变。
         val showRunningControls = isRunning || status is ServiceStatus.Stopping || status is ServiceStatus.Restarting
         androidx.compose.animation.AnimatedContent(
             targetState = showRunningControls,
@@ -907,14 +907,14 @@ fun HomeHeroCard(
                     fadeOut(animationSpec = tween(160))
                 ).using(SizeTransform(clip = false))
             },
-            label = "hero_buttons"
+            label = "hero_segmented_control"
         ) { running ->
-            if (running) {
-                HomeHeroSegmentedActions(
+            val mode: HeroControlMode = if (running) {
+                HeroControlMode.Running(
                     canReloadConfig = canReloadConfig,
                     enabled = isRunning && isEnvReady && !isBusy,
-                    isRestarting = status is ServiceStatus.Restarting,
                     isStopping = status is ServiceStatus.Stopping,
+                    isRestarting = status is ServiceStatus.Restarting,
                     onReloadConfig = {
                         scope.launch {
                             val res = BoxApi.reloadConfig()
@@ -929,15 +929,13 @@ fun HomeHeroCard(
                     onRestart = onReload
                 )
             } else {
-                HeroActionButton(
-                    text = stringResource(R.string.home_action_start),
-                    tone = HeroButtonTone.Primary,
-                    enabled = isStopped && isEnvReady,
-                    loading = status is ServiceStatus.Starting,
-                    onClick = onStart,
-                    modifier = Modifier.fillMaxWidth()
+                HeroControlMode.Stopped(
+                    onStart = onStart,
+                    starting = status is ServiceStatus.Starting,
+                    enabled = isStopped && isEnvReady
                 )
             }
+            HomeHeroSegmentedControl(mode = mode)
         }
     }
 }
@@ -1046,24 +1044,27 @@ private fun HeroInfoRow(
  * 每段使用独立的语义色（Monet 自适应）：info / danger / warning
  * 段间用细垂直分隔线区分，整体符合 miuix 胶囊风格。
  */
+/**
+ * Hero 卡 segmented control（B4 升级）：
+ *
+ * 设计：永远是 50dp 高的 Capsule，根据 [mode] 决定段数与主导段位置。
+ *   - Stopped：1 段「启动」全宽 dominant pill（success.container 填充）
+ *   - Running：3 段（reload-config / stop / restart），中间「停止」dominant
+ *     用 danger.container 内嵌 pill 高亮，左右两段透明背景仅文字色
+ *
+ * 切换 Stopped ↔ Running 时段数变化由外层 AnimatedContent + SizeTransform 平滑形变。
+ * Capsule 容器在切换中保持不变，视觉上是"段从中间长大成三段"的过渡。
+ */
 @Composable
-private fun HomeHeroSegmentedActions(
-    canReloadConfig: Boolean,
-    enabled: Boolean,
-    isRestarting: Boolean,
-    isStopping: Boolean,
-    onReloadConfig: () -> Unit,
-    onStop: () -> Unit,
-    onRestart: () -> Unit
-) {
+private fun HomeHeroSegmentedControl(mode: HeroControlMode) {
     val scheme = MiuixTheme.colorScheme
     val containerColor = scheme.surfaceContainer
     val dividerColor = scheme.dividerLine.copy(alpha = 0.5f)
 
-    // 三档语义色，来源于 homeInfoColors/Danger/Warning，均支持 Monet
-    val infoColor = homeInfoColors().accent
-    val dangerColor = homeDangerColors().accent
-    val warningColor = homeWarningColors().accent
+    val info = homeInfoColors()
+    val danger = homeDangerColors()
+    val warning = homeWarningColors()
+    val success = homeSuccessColors()
 
     Row(
         modifier = Modifier
@@ -1073,68 +1074,121 @@ private fun HomeHeroSegmentedActions(
             .background(containerColor),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (canReloadConfig) {
-            SegmentedActionItem(
-                text = stringResource(R.string.home_action_reload_config),
-                color = infoColor,
-                enabled = enabled,
-                onClick = onReloadConfig,
-                modifier = Modifier.weight(1f).fillMaxHeight()
-            )
-            SegmentedDivider(color = dividerColor)
+        when (mode) {
+            is HeroControlMode.Stopped -> {
+                SegmentedActionItem(
+                    text = stringResource(R.string.home_action_start),
+                    color = success.accent,
+                    enabled = mode.enabled,
+                    loading = mode.starting,
+                    dominant = true,
+                    dominantContainer = success.container,
+                    dominantContent = success.onContainer,
+                    onClick = mode.onStart,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight()
+                )
+            }
+            is HeroControlMode.Running -> {
+                if (mode.canReloadConfig) {
+                    SegmentedActionItem(
+                        text = stringResource(R.string.home_action_reload_config),
+                        color = info.accent,
+                        enabled = mode.enabled,
+                        onClick = mode.onReloadConfig,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    )
+                    SegmentedDivider(color = dividerColor)
+                }
+                // 中间「停止」段是主导操作 — 用 danger.container 填充内嵌 pill
+                SegmentedActionItem(
+                    text = stringResource(R.string.home_action_stop),
+                    color = danger.accent,
+                    enabled = mode.enabled,
+                    loading = mode.isStopping,
+                    dominant = true,
+                    dominantContainer = danger.container,
+                    dominantContent = danger.onContainer,
+                    onClick = mode.onStop,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                )
+                SegmentedDivider(color = dividerColor)
+                SegmentedActionItem(
+                    text = stringResource(R.string.home_action_reload),
+                    color = warning.accent,
+                    enabled = mode.enabled,
+                    loading = mode.isRestarting,
+                    onClick = mode.onRestart,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                )
+            }
         }
-        SegmentedActionItem(
-            text = stringResource(R.string.home_action_stop),
-            color = dangerColor,
-            enabled = enabled,
-            loading = isStopping,
-            onClick = onStop,
-            modifier = Modifier.weight(1f).fillMaxHeight()
-        )
-        SegmentedDivider(color = dividerColor)
-        SegmentedActionItem(
-            text = stringResource(R.string.home_action_reload),
-            color = warningColor,
-            enabled = enabled,
-            loading = isRestarting,
-            onClick = onRestart,
-            modifier = Modifier.weight(1f).fillMaxHeight()
-        )
     }
 }
 
+/**
+ * 单段操作项。
+ * - [dominant]=true：段内嵌 Capsule pill 用 [dominantContainer] 填充背景，
+ *   文字色用 [dominantContent]，视觉上"占主导"，与停止状态的"启动"段对称
+ * - [dominant]=false：透明背景 + [color] 文字色（次要操作）
+ */
 @Composable
 private fun SegmentedActionItem(
     text: String,
     color: Color,
     enabled: Boolean,
     loading: Boolean = false,
+    dominant: Boolean = false,
+    dominantContainer: Color? = null,
+    dominantContent: Color? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val animatedColor by animateColorAsState(
-        targetValue = if (enabled && !loading) color else color.copy(alpha = 0.38f),
+    val effectiveFg = when {
+        !enabled || loading -> color.copy(alpha = 0.38f)
+        dominant -> dominantContent ?: color
+        else -> color
+    }
+    val effectiveBg = if (dominant && enabled && !loading) {
+        dominantContainer ?: Color.Transparent
+    } else Color.Transparent
+
+    val animatedFg by animateColorAsState(
+        targetValue = effectiveFg,
         animationSpec = tween(durationMillis = 260),
-        label = "segmented_item_color"
+        label = "segmented_item_fg"
+    )
+    val animatedBg by animateColorAsState(
+        targetValue = effectiveBg,
+        animationSpec = tween(durationMillis = 320),
+        label = "segmented_item_bg"
     )
     Box(
-        modifier = modifier.clickable(
-            enabled = enabled && !loading,
-            onClick = onClick
-        ),
+        modifier = modifier
+            .padding(horizontal = 3.dp, vertical = 4.dp)
+            .clip(Capsule())
+            .background(animatedBg)
+            .clickable(enabled = enabled && !loading, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         if (loading) {
             top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator(
                 modifier = Modifier.size(16.dp),
-                color = animatedColor
+                color = animatedFg
             )
         } else {
             Text(
                 text = text,
                 style = MiuixTheme.textStyles.button,
                 fontWeight = FontWeight.SemiBold,
-                color = animatedColor
+                color = animatedFg
             )
         }
     }
@@ -1151,71 +1205,23 @@ private fun SegmentedDivider(color: Color) {
     )
 }
 
-private enum class HeroButtonTone { Primary, Danger, Warning, Muted }
+/** Hero 操作区状态机：根据服务状态选择 segmented control 布局 */
+private sealed interface HeroControlMode {
+    data class Stopped(
+        val onStart: () -> Unit,
+        val starting: Boolean,
+        val enabled: Boolean
+    ) : HeroControlMode
 
-@Composable
-private fun HeroActionButton(
-    text: String,
-    tone: HeroButtonTone = HeroButtonTone.Primary,
-    enabled: Boolean = true,
-    loading: Boolean = false,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val statusColors = when (tone) {
-        HeroButtonTone.Primary -> homeInfoColors()
-        HeroButtonTone.Danger -> homeDangerColors()
-        HeroButtonTone.Warning -> homeWarningColors()
-        HeroButtonTone.Muted -> homeNeutralColors()
-    }
-    val (bg, fg) = when (tone) {
-        HeroButtonTone.Muted -> {
-            MiuixTheme.colorScheme.secondaryContainer to MiuixTheme.colorScheme.onSecondaryContainer
-        }
-        else -> {
-            statusColors.container to statusColors.onContainer
-        }
-    }
-    val animatedBg by animateColorAsState(
-        targetValue = bg,
-        animationSpec = tween(durationMillis = 320),
-        label = "hero_btn_bg"
-    )
-    val animatedFg by animateColorAsState(
-        targetValue = fg,
-        animationSpec = tween(durationMillis = 320),
-        label = "hero_btn_fg"
-    )
-
-    Button(
-        onClick = onClick,
-        modifier = modifier,
-        enabled = enabled && !loading,
-        cornerRadius = 14.dp,
-        colors = ButtonDefaults.buttonColors(
-            color = animatedBg,
-            disabledColor = animatedBg.copy(alpha = 0.68f),
-            contentColor = animatedFg,
-            disabledContentColor = animatedFg.copy(alpha = 0.65f)
-        )
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            if (loading) {
-                top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator(
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(modifier = Modifier.padding(end = 8.dp))
-            }
-            Text(
-                text = text,
-                style = MiuixTheme.textStyles.button,
-                color = animatedFg
-            )
-        }
-    }
+    data class Running(
+        val canReloadConfig: Boolean,
+        val onReloadConfig: () -> Unit,
+        val onStop: () -> Unit,
+        val onRestart: () -> Unit,
+        val isStopping: Boolean,
+        val isRestarting: Boolean,
+        val enabled: Boolean
+    ) : HeroControlMode
 }
 
 @Composable
