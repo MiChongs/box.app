@@ -124,6 +124,9 @@ jobs:
 
       - name: Build release APKs (box + bfr)
         run: |
+          # 兜底：若 gradlew 在 Windows 端被换回 CRLF，Linux runner 会让 java 收到带 \r
+          # 的乱七八糟参数 → 显示 usage 并退出。强制转 LF。
+          sed -i 's/\r$//' gradlew
           chmod +x gradlew
           ./gradlew :app:assembleBoxRelease :app:assembleBfrRelease --stacktrace --no-daemon
 

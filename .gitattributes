@@ -1,0 +1,25 @@
+# 默认走自动检测；显式指明的部分覆盖默认
+* text=auto
+
+# Unix shell 脚本 — 强制 LF（CRLF 会让 Linux 启动失败）
+gradlew         text eol=lf
+*.sh            text eol=lf
+
+# Windows 批处理 — 强制 CRLF（cmd 解析依赖）
+gradlew.bat     text eol=crlf
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+
+# 二进制：禁止行尾转换 / 文本 diff
+*.jar           binary
+*.aar           binary
+*.apk           binary
+*.aab           binary
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.webp          binary
+*.ico           binary
+*.keystore      binary
+*.jks           binary
