@@ -40,8 +40,6 @@ import com.box.app.ui.screens.tools.ToolsUpdateSubscriptionScreen
 import com.box.app.ui.screens.tools.ToolsUpdateCnipScreen
 import com.box.app.ui.screens.tools.MonitorSettingsScreen
 import com.box.app.ui.screens.tools.ConfigEditorScreen
-import com.box.app.ui.screens.tools.SmartDnsConfigScreen
-import com.box.app.ui.screens.tools.SmartDnsScreen
 
 private enum class ToolsRoute {
     Root,
@@ -53,12 +51,10 @@ private enum class ToolsRoute {
     Logs,
     UpdateSubscription,
     UpdateCnip,
-    MonitorSettings,
-    SmartDns,
-    SmartDnsConfig;
+    MonitorSettings;
 
     /** 是否为嵌套路由（需要在父路由之上以二级动画推入） */
-    val isNested: Boolean get() = this == ConfigEditor || this == SmartDnsConfig
+    val isNested: Boolean get() = this == ConfigEditor
 }
 
 @Composable
@@ -79,7 +75,6 @@ fun ToolsScreen(
     onExitLogsToHome: () -> Unit = {},
     openUpdateSubscriptionFromHome: Boolean = false,
     onExitUpdateSubscriptionToHome: () -> Unit = {},
-    onOpenSmartDnsWebUi: () -> Unit = {}
 ) {
     var route by rememberSaveable {
         mutableStateOf(savedRouteName?.let { name ->
@@ -87,7 +82,6 @@ fun ToolsScreen(
         } ?: ToolsRoute.Root)
     }
     // SmartDNS 配置编辑器需要的文件路径参数
-    var smartDnsConfigPath by rememberSaveable { mutableStateOf("") }
     // 通用配置编辑器需要的参数
     var configEditorPath by rememberSaveable { mutableStateOf("") }
     var configEditorReturnRoute by rememberSaveable { mutableStateOf(ToolsRoute.ConfigManage) }
@@ -145,7 +139,6 @@ fun ToolsScreen(
     fun exitCurrentRoute() {
         when {
             route == ToolsRoute.ConfigEditor -> route = configEditorReturnRoute
-            route == ToolsRoute.SmartDnsConfig -> route = ToolsRoute.SmartDns
             route == ToolsRoute.Logs && openLogsFromHome -> onExitLogsToHome()
             route == ToolsRoute.UpdateSubscription && openUpdateSubscriptionFromHome -> onExitUpdateSubscriptionToHome()
             else -> route = ToolsRoute.Root
@@ -173,12 +166,11 @@ fun ToolsScreen(
                 transition.animateTo(0f, animationSpec = navigationPopSpec())
             }
             route.isNested -> {
-                // 进入嵌套路由（ConfigEditor / SmartDnsConfig）
+                // 进入嵌套路由（ConfigEditor）
                 lastNestedRoute = route
                 // 记住父路由
                 nestedParentRoute = when (route) {
                     ToolsRoute.ConfigEditor -> configEditorReturnRoute
-                    ToolsRoute.SmartDnsConfig -> ToolsRoute.SmartDns
                     else -> lastBaseRoute
                 }
                 lastBaseRoute = nestedParentRoute
@@ -276,7 +268,6 @@ fun ToolsScreen(
                     }
                 },
                 onOpenMonitorSettings = { route = ToolsRoute.MonitorSettings },
-                onOpenSmartDns = { route = ToolsRoute.SmartDns }
             )
         }
 
@@ -403,17 +394,6 @@ fun ToolsScreen(
                                 onNavVisibilityChange = onNavVisibilityChange,
                                 onBack = { exitCurrentRoute() }
                             )
-
-                            ToolsRoute.SmartDns -> SmartDnsScreen(
-                                onNavVisibilityChange = onNavVisibilityChange,
-                                onBack = { exitCurrentRoute() },
-                                onOpenConfigEditor = { path ->
-                                    smartDnsConfigPath = path
-                                    route = ToolsRoute.SmartDnsConfig
-                                },
-                                onOpenWebUi = onOpenSmartDnsWebUi
-                            )
-
                             else -> Unit
                         }
                     }
@@ -447,13 +427,6 @@ fun ToolsScreen(
                                     onNavVisibilityChange = onNavVisibilityChange,
                                     onBack = { exitCurrentRoute() }
                                 )
-
-                                ToolsRoute.SmartDnsConfig -> SmartDnsConfigScreen(
-                                    filePath = smartDnsConfigPath,
-                                    onNavVisibilityChange = onNavVisibilityChange,
-                                    onBack = { exitCurrentRoute() }
-                                )
-
                                 else -> Unit
                             }
                         }
