@@ -387,7 +387,6 @@ fun ThemedWebView(
                 // Inject download hook（使用静态缓存 JS，避免每次重建字符串）
                 view?.evaluateJavascript(DOWNLOAD_HOOK_JS, null)
 
-                // 注入外部自定义 JS（如 SmartDNS WebUI 自动登录）
                 injectJsOnPageFinished?.let { js -> view?.evaluateJavascript(js, null) }
             }
 
