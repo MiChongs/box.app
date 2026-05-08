@@ -97,7 +97,6 @@ fun ToolsRootScreen(
     onOpenUpdateSubscription: () -> Unit,
     onOpenUpdateCnip: () -> Unit,
     onOpenMonitorSettings: () -> Unit,
-    onOpenSmartDns: () -> Unit
 ) {
     val context = LocalContext.current
     val updatePrefs = remember { context.getSharedPreferences("tools_update", Context.MODE_PRIVATE) }
@@ -374,7 +373,6 @@ fun ToolsRootScreen(
             }
 
             // ═══ 规则与数据 ═════════════════════════════════════════════
-            // 应用代理 / 网络控制 / SmartDNS / CNIP — 都属于「访问规则」
             // 而非「模块更新」。CNIP 之前混在 Updates 里语义不清，移到此处
             item("section_rules") {
                 PreferenceSection(title = stringResource(R.string.tools_section_rules_title)) {
@@ -393,10 +391,7 @@ fun ToolsRootScreen(
                     )
                     PreferenceDivider()
                     ArrowPreference(
-                        title = "SmartDNS",
-                        summary = stringResource(R.string.smartdns_entry_subtitle),
                         startAction = { PreferenceIcon(Icons.Filled.Dns) },
-                        onClick = onOpenSmartDns
                     )
                     if (BuildConfig.FLAVOR != "bfr") {
                         PreferenceDivider()
