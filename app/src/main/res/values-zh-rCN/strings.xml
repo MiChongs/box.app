@@ -980,33 +980,6 @@
     <string name="monitor_github_token_subtitle">GitHub API 个人访问令牌</string>
 
     <!-- SmartDNS -->
-    <string name="smartdns_entry_subtitle">DNS 服务管理与 WebUI</string>
-    <string name="smartdns_not_installed">SmartDNS 模块未安装</string>
-    <string name="smartdns_section_status">服务状态</string>
-    <string name="smartdns_status_running">运行中</string>
-    <string name="smartdns_status_stopped">已停止</string>
-    <string name="smartdns_action_start">启动</string>
-    <string name="smartdns_action_stop">停止</string>
-    <string name="smartdns_action_restart">重启</string>
-    <string name="smartdns_webui_open">打开 WebUI</string>
-    <string name="smartdns_webui_user">用户名</string>
-    <string name="smartdns_webui_password">密码</string>
-    <string name="smartdns_section_config">配置管理</string>
-    <string name="smartdns_config_dns">DNS 配置</string>
-    <string name="smartdns_config_module">模块设置</string>
-    <string name="smartdns_section_settings">模块设置</string>
-    <string name="smartdns_auto_run">开机自启</string>
-    <string name="smartdns_auto_run_subtitle">开机时自动启动 SmartDNS</string>
-    <string name="smartdns_oom_protect">OOM 保护</string>
-    <string name="smartdns_oom_protect_subtitle">防止系统因内存不足杀死 SmartDNS</string>
-    <string name="smartdns_rule_auto_update">自动更新规则</string>
-    <string name="smartdns_rule_auto_update_subtitle">每天 %1$s 自动更新</string>
-    <string name="smartdns_update_rules_now">立即更新规则</string>
-    <string name="smartdns_update_rules_now_subtitle">下载并应用最新规则</string>
-    <string name="smartdns_section_logs">最近日志</string>
-    <string name="smartdns_no_logs">无日志内容</string>
-    <string name="smartdns_home_subtitle_running">运行中</string>
-    <string name="smartdns_home_subtitle_stopped">已停止</string>
 
     <!-- SmartDNS 配置编辑器 -->
     <string name="sdns_config_tab_visual">可视化</string>
