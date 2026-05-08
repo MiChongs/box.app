@@ -121,18 +121,13 @@ fun HomeScreen(
     onOpenPanel: () -> Unit,
     onOpenSubStore: () -> Unit,
     onOpenNetSpeed: () -> Unit = {},
-    onOpenSmartDns: (() -> Unit)? = null,
     onOpenSubscriptionDetail: () -> Unit = {},
     onOpenBaseProxyConfig: () -> Unit = {},
     onOpenLatencyTargets: () -> Unit = {}
 ) {
-    // SmartDNS 模块存在检测（仅在模块安装时显示快捷入口）
-    var smartDnsInstalled by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         kotlinx.coroutines.withContext(Dispatchers.IO) {
             val res =
-                com.box.app.data.backend.ShellExecutor.execute("[ -f /data/adb/smartdns/smartdns/smartdns.conf ] && echo ok")
-            smartDnsInstalled = res.stdout.trim() == "ok"
         }
     }
     val showSubStoreEntry by HomeRepository.showSubStoreEntry.collectAsState()
@@ -554,7 +549,6 @@ fun HomeScreen(
                                     onOpenPanel = onOpenPanel,
                                     onOpenSubStore = onOpenSubStore,
                                     onOpenLogs = onOpenLogs,
-                                    onOpenSmartDns = if (smartDnsInstalled && onOpenSmartDns != null) onOpenSmartDns else null,
                                     compact = useCompactQuickActions
                                 )
                             }
