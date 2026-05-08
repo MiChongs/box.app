@@ -93,7 +93,6 @@ import com.box.app.ui.screens.HomeScreen
 import com.box.app.ui.screens.ToolsScreen
 import com.box.app.ui.screens.SettingsScreen
 import com.box.app.ui.screens.PanelScreen
-import com.box.app.ui.screens.SmartDnsWebUiScreen
 import com.box.app.ui.screens.SubStoreScreen
 import com.box.app.ui.screens.tools.ToolsLogsScreen
 import com.box.app.ui.screens.tools.ToolsUpdateSubscriptionScreen
@@ -219,7 +218,6 @@ enum class AppScreen : NavKey {
     Main,
     Panel,
     SubStore,
-    SmartDnsWebUi,
     ToolsLogs,
     ToolsUpdateSubscription,
     NetSpeed,
@@ -291,14 +289,11 @@ fun AppScaffold() {
         mutableStateOf<AppScreen?>(if (openPanelOnLaunch) AppScreen.Panel else null)
     }
 
-    var smartDnsWebCanGoBack by remember { mutableStateOf(false) }
-    var smartDnsBackRequestKey by remember { mutableIntStateOf(0) }
 
     fun exitSubpage() {
         currentScreen = AppScreen.Main
         panelWebCanGoBack = false
         subStoreWebCanGoBack = false
-        smartDnsWebCanGoBack = false
     }
 
     fun openSubpage(screen: AppScreen) {
@@ -313,9 +308,6 @@ fun AppScaffold() {
                 subStoreWebCanGoBack = false
                 subStoreBackRequestKey = 0
             }
-            if (screen == AppScreen.SmartDnsWebUi) {
-                smartDnsWebCanGoBack = false
-                smartDnsBackRequestKey = 0
             }
             currentScreen = screen
         }
@@ -611,7 +603,6 @@ fun AppScaffold() {
                                                 onOpenPanel = { openSubpage(AppScreen.Panel) },
                                                 onOpenSubStore = { openSubpage(AppScreen.SubStore) },
                                                 onOpenNetSpeed = { openSubpage(AppScreen.NetSpeed) },
-                                                onOpenSmartDns = { openSubpage(AppScreen.SmartDnsWebUi) },
                                                 onOpenSubscriptionDetail = { openSubpage(AppScreen.SubscriptionDetail) },
                                                 onOpenBaseProxyConfig = { openSubpage(AppScreen.BaseProxyConfig) },
                                                 onOpenLatencyTargets = { openSubpage(AppScreen.LatencyTargets) }
@@ -656,7 +647,6 @@ fun AppScaffold() {
                                                     resetToolsToRootRequest += 1
                                                     mainPagerState.animateToPage(MainTab.Home.index())
                                                 },
-                                                onOpenSmartDnsWebUi = { openSubpage(AppScreen.SmartDnsWebUi) }
                                             )
                                         }
                                     }
@@ -738,7 +728,6 @@ fun AppScaffold() {
                                 systemBarSettings.navigationBar == SystemBarMode.TRANSPARENT &&
                                 screen != AppScreen.Panel &&
                                 screen != AppScreen.SubStore &&
-                                screen != AppScreen.SmartDnsWebUi
                             ) systemNavInsetDp else 0.dp
 
                             Box(
@@ -757,8 +746,6 @@ fun AppScaffold() {
                                         onPanelCanGoBackChange = { panelWebCanGoBack = it },
                                         subStoreBackRequestKey = subStoreBackRequestKey,
                                         onSubStoreCanGoBackChange = { subStoreWebCanGoBack = it },
-                                        smartDnsBackRequestKey = smartDnsBackRequestKey,
-                                        onSmartDnsCanGoBackChange = { smartDnsWebCanGoBack = it },
                                         onNavVisibilityChange = { navVisible = it },
                                         onOpenToolsSubscription = {
                                             exitSubpage()
@@ -794,7 +781,6 @@ fun AppScaffold() {
                     systemBarSettings.navigationBar == SystemBarMode.TRANSPARENT &&
                     activeSubpage != AppScreen.Panel &&
                     activeSubpage != AppScreen.SubStore &&
-                    activeSubpage != AppScreen.SmartDnsWebUi
                 ) {
                     systemNavInsetDp
                 } else {
@@ -805,13 +791,11 @@ fun AppScaffold() {
                     val shouldHandleWebBack =
                         (currentScreen == AppScreen.Panel && panelWebCanGoBack) ||
                             (currentScreen == AppScreen.SubStore && subStoreWebCanGoBack) ||
-                            (currentScreen == AppScreen.SmartDnsWebUi && smartDnsWebCanGoBack)
 
                     BackHandler {
                         when {
                             currentScreen == AppScreen.Panel && panelWebCanGoBack -> panelBackRequestKey += 1
                             currentScreen == AppScreen.SubStore && subStoreWebCanGoBack -> subStoreBackRequestKey += 1
-                            currentScreen == AppScreen.SmartDnsWebUi && smartDnsWebCanGoBack -> smartDnsBackRequestKey += 1
                             else -> exitSubpage()
                         }
                     }
@@ -822,7 +806,6 @@ fun AppScaffold() {
                             when {
                                 currentScreen == AppScreen.Panel && panelWebCanGoBack -> panelBackRequestKey += 1
                                 currentScreen == AppScreen.SubStore && subStoreWebCanGoBack -> subStoreBackRequestKey += 1
-                                currentScreen == AppScreen.SmartDnsWebUi && smartDnsWebCanGoBack -> smartDnsBackRequestKey += 1
                             }
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
@@ -867,7 +850,6 @@ fun AppScaffold() {
                 // 之前用 `.graphicsLayer { translationX = subX }` 推动 subpage 滑入，
                 // 即便完全展开 (subX == 0f) graphicsLayer 仍创建一层 RenderNode wrapper，
                 // AndroidView 内嵌的 WebView 在硬件加速合成路径下被强制走离屏 RenderNode，
-                // 导致渲染黑洞 / 不刷新 / 错位（Panel/SubStore/SmartDnsWebUi 三页都是 webview）。
                 //
                 // 改为 Modifier.offset { IntOffset(...) }：位移发生在 layout 阶段，**不**创建
                 // graphicsLayer / RenderNode wrapper，AndroidView 子节点不被强制离屏渲染，
@@ -893,10 +875,7 @@ fun AppScaffold() {
                                 backRequestKey = subStoreBackRequestKey,
                                 onCanGoBackChange = { subStoreWebCanGoBack = it }
                             )
-                            AppScreen.SmartDnsWebUi -> SmartDnsWebUiScreen(
                                 onNavigateBack = { exitSubpage() },
-                                backRequestKey = smartDnsBackRequestKey,
-                                onCanGoBackChange = { smartDnsWebCanGoBack = it }
                             )
                             AppScreen.ToolsLogs -> ToolsLogsScreen(
                                 onNavVisibilityChange = { navVisible = it },
@@ -1127,8 +1106,6 @@ private fun SubpageContent(
     onPanelCanGoBackChange: (Boolean) -> Unit,
     subStoreBackRequestKey: Int,
     onSubStoreCanGoBackChange: (Boolean) -> Unit,
-    smartDnsBackRequestKey: Int,
-    onSmartDnsCanGoBackChange: (Boolean) -> Unit,
     onNavVisibilityChange: (Boolean) -> Unit,
     onOpenToolsSubscription: () -> Unit
 ) {
@@ -1143,10 +1120,7 @@ private fun SubpageContent(
             backRequestKey = subStoreBackRequestKey,
             onCanGoBackChange = onSubStoreCanGoBackChange
         )
-        AppScreen.SmartDnsWebUi -> SmartDnsWebUiScreen(
             onNavigateBack = onBack,
-            backRequestKey = smartDnsBackRequestKey,
-            onCanGoBackChange = onSmartDnsCanGoBackChange
         )
         AppScreen.ToolsLogs -> ToolsLogsScreen(
             onNavVisibilityChange = onNavVisibilityChange,
