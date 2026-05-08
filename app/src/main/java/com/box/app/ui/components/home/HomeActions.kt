@@ -40,7 +40,6 @@ fun HomeQuickActions(
     onOpenPanel: () -> Unit,
     onOpenSubStore: () -> Unit,
     onOpenLogs: () -> Unit,
-    onOpenSmartDns: (() -> Unit)? = null,
     compact: Boolean = false
 ) {
     data class QuickItem(val title: String, val subtitle: String, val icon: ImageVector, val onClick: () -> Unit)
@@ -48,7 +47,6 @@ fun HomeQuickActions(
         add(QuickItem(stringResource(R.string.home_quick_panel_title), stringResource(R.string.home_quick_panel_subtitle), Icons.Outlined.Dashboard, onOpenPanel))
         if (showSubStore) add(QuickItem(stringResource(R.string.home_quick_subs_title), stringResource(R.string.home_quick_subs_subtitle), Icons.Outlined.Link, onOpenSubStore))
         add(QuickItem(stringResource(R.string.home_quick_logs_title), stringResource(R.string.home_quick_logs_subtitle), Icons.AutoMirrored.Outlined.Article, onOpenLogs))
-        if (onOpenSmartDns != null) add(QuickItem("DNS", "SmartDNS", Icons.Outlined.Dns, onOpenSmartDns))
     }
 
     // compact: 每行 2 个网格；normal: 尽量一行排完
