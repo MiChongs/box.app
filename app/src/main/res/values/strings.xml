@@ -980,33 +980,6 @@
     <string name="monitor_github_token_subtitle">Personal access token for GitHub API</string>
 
     <!-- SmartDNS -->
-    <string name="smartdns_entry_subtitle">DNS service management &amp; WebUI</string>
-    <string name="smartdns_not_installed">SmartDNS module not installed</string>
-    <string name="smartdns_section_status">Service Status</string>
-    <string name="smartdns_status_running">Running</string>
-    <string name="smartdns_status_stopped">Stopped</string>
-    <string name="smartdns_action_start">Start</string>
-    <string name="smartdns_action_stop">Stop</string>
-    <string name="smartdns_action_restart">Restart</string>
-    <string name="smartdns_webui_open">Open WebUI</string>
-    <string name="smartdns_webui_user">Username</string>
-    <string name="smartdns_webui_password">Password</string>
-    <string name="smartdns_section_config">Configuration</string>
-    <string name="smartdns_config_dns">DNS Configuration</string>
-    <string name="smartdns_config_module">Module Settings</string>
-    <string name="smartdns_section_settings">Module Settings</string>
-    <string name="smartdns_auto_run">Auto start</string>
-    <string name="smartdns_auto_run_subtitle">Start SmartDNS on boot</string>
-    <string name="smartdns_oom_protect">OOM protection</string>
-    <string name="smartdns_oom_protect_subtitle">Prevent system from killing SmartDNS</string>
-    <string name="smartdns_rule_auto_update">Auto update rules</string>
-    <string name="smartdns_rule_auto_update_subtitle">Daily at %1$s</string>
-    <string name="smartdns_update_rules_now">Update rules now</string>
-    <string name="smartdns_update_rules_now_subtitle">Download and apply latest rules</string>
-    <string name="smartdns_section_logs">Recent Logs</string>
-    <string name="smartdns_no_logs">No log content</string>
-    <string name="smartdns_home_subtitle_running">Running</string>
-    <string name="smartdns_home_subtitle_stopped">Stopped</string>
 
     <!-- SmartDNS Config Editor -->
     <string name="sdns_config_tab_visual">Visual</string>
